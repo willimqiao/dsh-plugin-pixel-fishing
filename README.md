@@ -18,7 +18,8 @@ dsh plugin --profile desktop add https://github.com/willimqiao/dsh-plugin-pixel-
 `%LOCALAPPDATA%\Programs\dsh-plugin-pixel-fishing`，装好后宠物自己出现；
 以后启动只负责把它拉起来，已经在运行就唤到前面。
 
-> 自动安装要准备约 270 MB 运行时（同盘硬链接，跨盘复制），第一次会等几秒到十几秒，期间 DSH 照常使用。
+> 自动安装不额外下载：直接复用本机 DSH 的 Electron 运行时（游戏本体只有 1 MB）。
+> 和 DSH 同盘时用硬链接，不占额外空间；跨盘才复制约 270 MB，第一次会等几秒，期间 DSH 照常使用。
 > 不想自动安装：在插件配置里设 `autoInstall: false`，再按下面的「安装桌面宠物本体」手动装。
 
 以前装过 `idle-fishing` 启动器的话，先把它移除。单实例锁不会开出第二个窗口，
