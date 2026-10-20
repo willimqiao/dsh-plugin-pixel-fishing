@@ -7,20 +7,22 @@
 
 ## 安装成 DSH 插件（Windows）
 
-1. 先装桌面宠物本体（在仓库根目录运行）：
+1. 克隆仓库并安装桌面宠物本体：
 
    ```powershell
+   git clone https://github.com/willimqiao/dsh-plugin-pixel-fishing.git
+   cd dsh-plugin-pixel-fishing
    powershell -ExecutionPolicy Bypass -File .\install.ps1 -CopyApp
    ```
 
    `-CopyApp` 会把游戏复制到安装目录，之后插件升级或仓库挪走都不影响宠物。
    自己改代码开发时去掉它，安装脚本会把 `resources\app` 联接到仓库的 `app\`，改完刷新即可。
 
-2. 打开 DSH 的「插件」页 →「添加插件」，填入本仓库的 GitHub 地址或本地目录；
-   也可以用 CLI：
+2. 打开 DSH 的「插件」页 →「添加插件」，填入
+   `https://github.com/willimqiao/dsh-plugin-pixel-fishing`；也可以用 CLI：
 
    ```powershell
-   dsh plugin --profile desktop add <本仓库的绝对路径或 GitHub 地址>
+   dsh plugin --profile desktop add https://github.com/willimqiao/dsh-plugin-pixel-fishing
    ```
 
 3. 重启 DSH。插件会在启动约 1 秒后拉起宠物；已经在运行就只唤到前面。
