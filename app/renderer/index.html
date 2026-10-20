@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#141824">
+<title>像素渔场 · 挂机钓鱼</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: #0b0d14;
+    color: #e8eef8;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    display: flex;
+    justify-content: center;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    overflow: hidden;
+  }
+  #app {
+    width: 100%;
+    max-width: 480px;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    background: #141824;
+    box-shadow: 0 0 0 2px #0b0d14, 0 0 30px rgba(0,0,0,.8);
+  }
+
+  /* 顶部状态 */
+  header {
+    display: flex;
+    gap: 6px;
+    padding: 8px;
+    background: #1a2030;
+    border-bottom: 2px solid #2a3450;
+    flex-shrink: 0;
+  }
+  .stat {
+    flex: 1;
+    background: #222a40;
+    padding: 6px 4px;
+    font-size: 13px;
+    text-align: center;
+    border: 1px solid #34406a;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .stat span { color: #ffd24a; font-weight: 700; }
+  .stat:nth-child(2) span { color: #6fd0ff; }
+  .stat:nth-child(3) span { color: #b06cff; }
+
+  /* 场景 */
+  #stage { position: relative; background: #000; flex-shrink: 0; }
+  canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
+  #toast {
+    position: absolute;
+    left: 50%;
+    top: 12px;
+    transform: translateX(-50%) translateY(-8px);
+    background: rgba(10,14,24,.85);
+    border: 2px solid #34406a;
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .25s, transform .25s;
+    white-space: nowrap;
+    z-index: 5;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* 进度条 */
+  #barWrap {
+    height: 16px;
+    background: #1a2030;
+    border: 2px solid #2a3450;
+    margin: 8px 8px 4px;
+    position: relative;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  #bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #2a6aa8, #6fd0ff);
+    transition: width .06s linear;
+  }
+  #bar.full { background: linear-gradient(90deg, #a84a2a, #ff8a5a); }
+  #hint {
+    text-align: center;
+    font-size: 11px;
+    color: #7a88a8;
+    padding-bottom: 6px;
+    flex-shrink: 0;
+  }
+  #hint b { color: #c8d4f0; }
+
+  /* 标签 */
+  nav {
+    display: flex;
+    background: #1a2030;
+    border-top: 2px solid #2a3450;
+    border-bottom: 2px solid #2a3450;
+    flex-shrink: 0;
+  }
+  nav button {
+    flex: 1;
+    padding: 11px 0;
+    background: none;
+    border: none;
+    color: #7a88a8;
+    font-size: 14px;
+    font-weight: 700;
+    font-family: inherit;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    transition: color .15s, background .15s;
+  }
+  nav button.active {
+    color: #fff;
+    border-bottom-color: #4aa8ff;
+    background: #222a40;
+  }
+
+  /* 面板 */
+  main {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .btn {
+    background: #2a3450;
+    border: 2px solid #3a4a70;
+    color: #d8e4f8;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 8px 14px;
+    cursor: pointer;
+    box-shadow: 0 3px 0 #151b2a;
+    transition: transform .05s, box-shadow .05s, background .15s;
+  }
+  .btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #151b2a; }
+  .btn.primary { background: #2a6aa8; border-color: #4a8ad0; color: #fff; }
+  .btn:disabled { opacity: .4; cursor: not-allowed; transform: none; box-shadow: 0 3px 0 #151b2a; }
+  .btn.buy { min-width: 88px; font-size: 12px; }
+
+  .row { display: flex; gap: 8px; margin-bottom: 10px; }
+  .row .btn { flex: 1; }
+
+  /* 鱼篓 */
+  .basket-list { display: flex; flex-direction: column; gap: 4px; }
+  .basket-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #1a2030;
+    border: 1px solid #2a3450;
+    padding: 5px 8px;
+    font-size: 12px;
+  }
+  .basket-item img { width: 33px; height: 18px; image-rendering: pixelated; }
+  .bi-name { flex: 1; min-width: 0; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bi-count { color: #8fa0c0; }
+  .bi-val { color: #ffd24a; min-width: 54px; text-align: right; }
+  .empty { text-align: center; color: #55618a; padding: 24px 0; font-size: 13px; }
+
+  /* 商店 */
+  .shop-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #1a2030;
+    border: 1px solid #2a3450;
+    padding: 10px;
+    margin-bottom: 8px;
+  }
+  .si-info { flex: 1; min-width: 0; }
+  .si-title { font-size: 14px; font-weight: 700; margin-bottom: 3px; }
+  .si-desc { font-size: 11px; color: #7a88a8; line-height: 1.4; }
+
+  /* 图鉴 */
+  .dex-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+  .dex-cell {
+    background: #1a2030;
+    border: 2px solid #2a3450;
+    padding: 8px 4px 7px;
+    text-align: center;
+    min-height: 98px;
+    transition: transform .1s, border-color .15s, background .15s;
+  }
+  .dex-cell:hover { transform: translateY(-1px); background: #1d2436; }
+  .dex-cell img {
+    width: 66px;
+    height: 36px;
+    image-rendering: pixelated;
+    margin-bottom: 4px;
+    filter: drop-shadow(0 2px 0 rgba(0,0,0,.32));
+  }
+  .dex-cell.locked img { filter: brightness(0) opacity(.22); }
+  .dex-name { font-size: 11px; font-weight: 700; line-height: 1.2; }
+  .dex-meta { font-size: 10px; color: #6a7699; margin-top: 2px; }
+  .dex-cell.locked .dex-name { color: #3a4466; }
+
+  /* 弹窗 */
+  #modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(5,7,12,.82);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 50;
+  }
+  #modal.hidden { display: none; }
+  .modal-box {
+    background: #1a2030;
+    border: 2px solid #3a4a70;
+    box-shadow: 0 6px 0 #0b0d14;
+    padding: 18px;
+    width: 100%;
+    max-width: 320px;
+    text-align: center;
+  }
+  .modal-box h2 {
+    font-size: 16px;
+    margin-bottom: 12px;
+    color: #ffd24a;
+  }
+  .modal-box p { font-size: 13px; line-height: 1.7; color: #b8c6e0; margin-bottom: 6px; }
+  .modal-box .btn { margin-top: 14px; width: 100%; }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-thumb { background: #2a3450; }
+
+  /* ===== desktop pet window overrides ===== */
+  html, body { background: transparent; }
+  body { display: block; }
+  #app {
+    position: relative;
+    max-width: none;
+    height: 100vh;
+    border: 2px solid #2a3450;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 16px 40px rgba(0,0,0,.55), 0 0 0 1px rgba(0,0,0,.55);
+  }
+  #titlebar {
+    cursor: grab;
+    align-items: center;
+    padding: 6px 6px 6px 8px;
+    gap: 6px;
+  }
+  #titlebar .stat { -webkit-app-region: no-drag; padding: 4px 2px; font-size: 12px; }
+  .winbtns { display: flex; gap: 3px; -webkit-app-region: no-drag; margin-left: 2px; }
+  .wb {
+    width: 24px; height: 24px; border: 1px solid #34406a; background: #222a40;
+    color: #9fb0d0; font-size: 11px; line-height: 1; cursor: pointer;
+    border-radius: 4px; font-family: inherit; padding: 0;
+  }
+  .wb:hover { background: #2e3a58; color: #fff; }
+  .wb.active { background: #2a6aa8; border-color: #4a8ad0; color: #fff; }
+  .wb.close:hover { background: #a83232; border-color: #d05050; color: #fff; }
+  body.pet #titlebar {
+    position: absolute; top: 0; right: 0; left: auto; z-index: 20;
+    background: transparent; border: 0; padding: 4px; gap: 4px;
+    -webkit-app-region: no-drag;
+  }
+  body.pet #titlebar .stat { display: none; }
+  body.pet .winbtns .wb { background: rgba(10,14,24,.55); border-color: rgba(120,160,210,.35); }
+  body.pet #barWrap, body.pet #hint, body.pet nav, body.pet main { display: none; }
+  body.pet #stage { height: 100%; cursor: grab; }
+  body.pet #app { border-radius: 10px; }
+  body.pet #btnPin { display: none; }
+  body.pet #toast { font-size: 11px; top: 6px; padding: 3px 8px; }
+  body.pet #modal { display: none !important; }
+  body.dragging #app, body.dragging #app * { cursor: grabbing !important; }
+  body.fighting #toast { top: auto; bottom: 8px; }
+  body.pet #toast { top: auto; bottom: 8px; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 10px; line-height: 1.3; padding: 3px 8px; }
+
+  /* ===== M2: 尺寸 / 成就 ===== */
+  .bi-size { color: #7a88a8; font-size: 10px; white-space: nowrap; }
+  .dex-summary { font-size: 12px; color: #9fb0d0; margin-bottom: 8px; }
+  .ach-wrap { margin-top: 12px; }
+  .ach-head { display: flex; align-items: baseline; gap: 6px; font-size: 12px; color: #9fb0d0; margin-bottom: 6px; }
+  .ach-head b { color: #ffd24a; }
+  .ach-head span { margin-left: auto; font-size: 10px; color: #55618a; }
+  .ach-filters { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 5px; margin-bottom: 5px; }
+  .ach-filter-btn {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 3px;
+    background: #1a2030; border: 1px solid #2a3450; color: #8fa0c0;
+    padding: 3px 7px; cursor: pointer; font-family: inherit; font-size: 10px; font-weight: 700;
+  }
+  .ach-filter-btn i { font-style: normal; font-size: 9px; opacity: .6; }
+  .ach-filter-btn.sel { border-color: #4aa8ff; background: #222a40; color: #fff; }
+  .ach-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px; }
+  .ach { display: flex; flex-direction: column; gap: 2px; background: #1a2030; border: 1px solid #2a3450; padding: 5px 7px; opacity: .5; }
+  .ach.on { opacity: 1; border-color: #4aa8ff; background: #1e2a40; }
+  .ach-top { display: flex; align-items: center; gap: 4px; }
+  .ach-name { display: block; font-size: 11px; font-weight: 700; color: #d8e4f8; }
+  .ach-cat { margin-left: auto; font-size: 9px; color: #55618a; border: 1px solid #2a3450; padding: 0 4px; border-radius: 999px; }
+  .ach.on .ach-cat { color: #8fb8e8; border-color: #34406a; }
+  .ach-desc { display: block; font-size: 10px; color: #6a7699; margin-top: 2px; line-height: 1.3; }
+  .ach-progress { display: block; height: 4px; background: #20263a; border: 1px solid #2a3450; margin-top: 2px; overflow: hidden; }
+  .ach-progress > i { display: block; height: 100%; background: linear-gradient(90deg, #4aa8ff, #6fd0ff); }
+  .ach-num { font-size: 9px; color: #6a7699; text-align: right; margin-top: 1px; }
+  .ach-reward { font-size: 10px; color: #6a7699; }
+  .ach.on .ach-reward { color: #5fcf7a; }
+  .tab.ready::after { content: '•'; color: #ffd24a; margin-left: 3px; }
+
+  /* ===== M3: 鱼塘 ===== */
+  nav button { font-size: 13px; padding: 10px 0; }
+  .pond-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 12px; color: #9fb0d0; margin-bottom: 8px; }
+  .pond-head b { color: #ffd24a; }
+  .pond-head .btn { font-size: 11px; padding: 5px 8px; }
+  .pond-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .pond-slot { background: #1a2030; border: 2px solid #2a3450; min-height: 96px; padding: 6px 4px; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; transition: box-shadow .2s, filter .12s, border-color .12s; }
+  .pond-slot.empty { border-style: dashed; color: #55618a; font-size: 11px; }
+  .pond-slot.empty:hover { border-color: #4aa8ff; }
+  .pond-slot.filled { border-color: var(--tier, #2a3450); background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(0,0,0,.14)), #1a2030; box-shadow: inset 0 0 0 1px rgba(0,0,0,.4), 0 0 8px -5px var(--tier); }
+  .pond-slot.filled:hover { filter: brightness(1.12); }
+  .pond-slot.filled.tier-hi { box-shadow: inset 0 0 0 1px rgba(0,0,0,.4), 0 0 12px -2px var(--tier); }
+  .pond-slot.filled.tier-max { box-shadow: inset 0 0 0 1px rgba(255,255,255,.12), 0 0 16px -1px var(--tier); }
+  .pond-slot.tier-max .pond-tier { text-shadow: 0 0 6px var(--tier); }
+  .pond-slot img { width: 44px; height: 24px; image-rendering: pixelated; filter: drop-shadow(0 1px 0 rgba(0,0,0,.35)); }
+  .pond-name { font-size: 11px; font-weight: 700; }
+  .pond-meta { font-size: 10px; color: #8fa0c0; }
+  .pond-rate { font-size: 10px; color: #ffd24a; }
+  .pond-tip { margin-top: 8px; font-size: 11px; color: #55618a; text-align: center; }
+  .trait-box { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin: 8px 0; }
+  .trait { font-size: 10px; color: #b06cff; border: 1px solid #4a3a6a; padding: 1px 6px; border-radius: 999px; }
+  .trait.dim { color: #55618a; border-color: #2a3450; }
+  #modalBody .btn { display: block; width: 100%; margin-top: 8px; }
+  .pick-list { max-height: 46vh; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+  .pick { display: flex; align-items: center; gap: 8px; background: #1a2030; border: 1px solid #2a3450; padding: 6px 8px; cursor: pointer; color: #d8e4f8; font-family: inherit; font-size: 12px; text-align: left; }
+  .pick:hover { border-color: #4aa8ff; }
+  .pick img { width: 33px; height: 18px; image-rendering: pixelated; }
+  .pick-name { font-weight: 700; }
+  .pick-meta { color: #8fa0c0; font-size: 11px; }
+  .pick-val { margin-left: auto; color: #ffd24a; font-size: 11px; }
+  .pond-tier { font-size: 11px; font-weight: 700; }
+  .pond-fish { display: flex; justify-content: center; margin: -4px 0 8px; }
+  .pond-fish img { width: 88px; height: 48px; image-rendering: pixelated; filter: drop-shadow(0 3px 0 rgba(0,0,0,.35)); }
+  .pond-fish.win { margin-top: 0; }
+  .pond-fish.win img { animation: fishJoy .85s cubic-bezier(.2,1.6,.4,1); filter: drop-shadow(0 0 14px rgba(255,210,74,.9)); }
+  @keyframes fishJoy {
+    0% { transform: scale(.65) translateY(8px); }
+    55% { transform: scale(1.2) translateY(-7px); }
+    100% { transform: scale(1) translateY(0); }
+  }
+  .tier-up-line { display: flex; align-items: center; justify-content: center; gap: 9px; margin: 0 0 12px; font-weight: 900; }
+  .tier-up-line .t-old { font-size: 13px; opacity: .5; text-decoration: line-through; text-decoration-thickness: 1px; }
+  .tier-up-line .t-arrow { font-size: 12px; color: #6a7699; animation: arrowPulse .45s ease-in-out infinite alternate; }
+  .tier-up-line .t-new { font-size: 23px; letter-spacing: 2px; animation: tierPop .75s cubic-bezier(.2,1.6,.4,1); }
+  @keyframes tierPop {
+    0% { transform: scale(.25); opacity: 0; }
+    60% { transform: scale(1.22); opacity: 1; }
+    100% { transform: scale(1); }
+  }
+  @keyframes arrowPulse { from { opacity: .3; } to { opacity: 1; } }
+  .rate-up { margin-left: 6px; font-size: 11px; font-weight: 700; color: #5fcf7a; animation: ratePop .7s cubic-bezier(.2,1.6,.4,1); }
+  @keyframes ratePop {
+    0% { opacity: 0; transform: translateY(6px) scale(.6); }
+    55% { opacity: 1; transform: translateY(-2px) scale(1.18); }
+    100% { transform: none; }
+  }
+  .amp-box { margin: 10px 0 12px; padding: 9px 8px 7px; background: #161c2c; border: 1px solid #2a3450; }
+  .amp-box.maxed { border-color: #4a3a6a; }
+  .amp-box.maxed .amp-chance { color: #b06cff; font-weight: 700; font-size: 14px; }
+  .amp-chance { font-size: 12px; color: #9fb0d0; text-align: center; }
+  .amp-chance b { color: #ffd24a; font-size: 15px; }
+  .amp-sub { margin-top: 3px; font-size: 10px; line-height: 1.5; color: #7a88a8; text-align: center; }
+  .amp-luck { height: 6px; background: #20263a; border: 1px solid #2a3450; margin-top: 6px; overflow: hidden; }
+  .amp-luck > i { display: block; height: 100%; background: linear-gradient(90deg, #4aa8ff, #b06cff); }
+  .amp-risk { margin-top: 6px; font-size: 11px; color: #ff8a5a; text-align: center; }
+  .roll-box { padding: 6px 0 4px; }
+  .roll-stage {
+    position: relative; width: 122px; height: 122px; margin: 0 auto 6px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .roll-halo {
+    position: absolute; inset: 4px; border-radius: 50%;
+    background: radial-gradient(circle, var(--tier, #ffd24a) -30%, transparent 68%);
+    opacity: .45; animation: haloPulse .55s ease-in-out infinite alternate;
+  }
+  @keyframes haloPulse { from { opacity: .25; transform: scale(.88); } to { opacity: .62; transform: scale(1.08); } }
+  .roll-ring { position: absolute; border-radius: 50%; pointer-events: none; }
+  .roll-ring.r1 {
+    inset: 0; border: 2px dashed rgba(255,210,74,.55);
+    animation: ringSpin 2.6s linear infinite reverse;
+  }
+  .roll-ring.r2 {
+    inset: 10px; border: 2px solid var(--tier, #ffd24a); opacity: .5;
+    box-shadow: inset 0 0 14px var(--tier, #ffd24a), 0 0 12px rgba(255,210,74,.25);
+    animation: ringSpin 1.6s linear infinite;
+  }
+  .roll-orbit { position: absolute; inset: 0; animation: ringSpin 3.2s linear infinite; }
+  .roll-orbit i {
+    position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px;
+    border-radius: 50%; background: var(--tier, #ffd24a);
+    box-shadow: 0 0 9px var(--tier, #ffd24a);
+    transform: rotate(var(--a)) translateX(var(--r));
+    animation: orbitTwinkle .5s ease-in-out infinite alternate;
+  }
+  @keyframes orbitTwinkle { from { opacity: .2; } to { opacity: 1; } }
+  .up-ring {
+    width: 74px; height: 74px; position: relative;
+    display: flex; align-items: center; justify-content: center;
+    border: 2px solid var(--tier, #34406a); border-radius: 50%;
+    background: radial-gradient(circle, rgba(74,168,255,.24), transparent 70%);
+    box-shadow: 0 0 22px var(--tier, #4aa8ff);
+  }
+  .up-ring::before {
+    content: ''; position: absolute; inset: -6px; border-radius: 50%;
+    border: 1px solid rgba(255,255,255,.45);
+    animation: ringPulse .5s ease-in-out infinite alternate;
+  }
+  .up-ring img { width: 45px; height: 30px; image-rendering: pixelated; animation: ringPulse .5s ease-in-out infinite alternate; }
+  @keyframes ringSpin { to { transform: rotate(360deg); } }
+  @keyframes ringPulse { from { transform: scale(.94); filter: brightness(1); } to { transform: scale(1.09); filter: brightness(1.5); } }
+  .roll-tier { text-align: center; font-size: 12px; letter-spacing: 1px; color: #9fb0d0; margin-bottom: 9px; }
+  .roll-tier em { font-style: normal; color: #5a6a8a; margin: 0 7px; }
+  .roll-tier b { font-size: 15px; text-shadow: 0 0 12px currentColor; animation: tierBlink .5s ease-in-out infinite alternate; }
+  @keyframes tierBlink { from { opacity: .5; } to { opacity: 1; } }
+  .roll-bar {
+    height: 14px; background: #151a28; border: 1px solid #34406a; overflow: hidden;
+    position: relative; box-shadow: inset 0 2px 6px rgba(0,0,0,.5);
+  }
+  .roll-bar::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(90deg, transparent 0 14px, rgba(0,0,0,.45) 14px 17px);
+  }
+  .roll-bar > i {
+    display: block; height: 100%; width: 0;
+    background: linear-gradient(90deg, #4aa8ff, var(--tier, #ffd24a));
+    box-shadow: 0 0 14px var(--tier, #ffd24a);
+    animation: rollfill var(--roll-ms, .9s) linear forwards;
+  }
+  .roll-text { text-align: center; font-size: 13px; color: #9fb0d0; margin-top: 11px; animation: blink .3s infinite alternate; }
+  @keyframes rollfill { from { width: 0; } to { width: 100%; } }
+  @keyframes blink { from { opacity: .35; } to { opacity: 1; } }
+  .modal-box.roll-success { animation: successGlow .85s ease; }
+  .modal-box.roll-charm { animation: successGlow .85s ease; }
+  .modal-box.roll-fail { animation: failShake .45s ease; }
+  @keyframes successGlow {
+    0% { box-shadow: 0 6px 0 #0b0d14; }
+    40% { box-shadow: 0 0 28px 8px rgba(255,210,74,.75); }
+    100% { box-shadow: 0 6px 0 #0b0d14; }
+  }
+  @keyframes failShake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-8px); }
+    40% { transform: translateX(8px); }
+    60% { transform: translateX(-5px); }
+    80% { transform: translateX(5px); }
+  }
+  .destroy-text { color: #ff6a5a; font-weight: 700; font-size: 14px; }
+
+  /* ===== M3: 天气 / 鱼饵 / 鱼市 / 升级特效 ===== */
+  #weatherTag {
+    position: absolute; top: 6px; left: 6px; z-index: 20;
+    font-size: 10px; font-weight: 700; line-height: 1;
+    padding: 3px 7px; border-radius: 999px;
+    background: rgba(10,14,24,.68); border: 1px solid rgba(120,160,210,.35);
+    color: #ffd24a; pointer-events: none;
+  }
+  body.pet #weatherTag { top: 4px; left: 4px; font-size: 9px; padding: 2px 6px; }
+
+  .bait-bar { display: flex; gap: 4px; margin-bottom: 8px; }
+  .bait {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: 3px;
+    background: #1a2030; border: 1px solid #2a3450; color: #9fb0d0;
+    font-family: inherit; font-size: 11px; font-weight: 700; padding: 5px 3px;
+    cursor: pointer; white-space: nowrap;
+  }
+  .bait.sel { border-color: #ffd24a; background: #2a2f3a; color: #fff; }
+  .bait.chum { flex: 0 0 auto; cursor: default; border-color: rgba(255,138,90,.55); background: rgba(255,138,90,.10); color: #ffd8c8; }
+  .bait.chum .bait-count { color: #ff8a5a; font-weight: 700; }
+  .bait:disabled { opacity: .35; cursor: not-allowed; }
+  .bait-icon { font-size: 12px; }
+  .bait-count { color: #7a88a8; font-weight: 400; }
+  .basket-item.hot { border-color: rgba(255,210,74,.45); }
+  .bi-sell {
+    flex: 0 0 auto; border: 1px solid #4a8ad0; background: #24395a; color: #cfe4ff;
+    font-family: inherit; font-size: 10px; font-weight: 700; padding: 2px 7px;
+    cursor: pointer; border-radius: 3px;
+  }
+  .bi-sell:hover { background: #2f4d78; color: #fff; }
+  .bi-sell:active { transform: translateY(1px); }
+  .bi-market { font-size: 9.5px; min-width: 44px; text-align: right; white-space: nowrap; }
+  .buy-group { display: flex; flex-direction: column; gap: 4px; }
+  .buy-group .btn { min-width: 96px; padding: 4px 6px; font-size: 11px; box-shadow: 0 2px 0 #151b2a; }
+  .buy-group .btn:active { box-shadow: 0 0 0 #151b2a; }
+
+  .market-head { display: flex; align-items: baseline; gap: 6px; margin-bottom: 4px; font-weight: 700; flex-wrap: wrap; }
+  #marketName { font-size: 15px; }
+  #marketRate { font-size: 11px; color: #8fa0c0; }
+  #marketPrice { font-size: 20px; }
+  #marketSignal {
+    font-size: 10px; font-weight: 700; line-height: 1.4; padding: 1px 6px;
+    border: 1px solid currentColor; border-radius: 999px; white-space: nowrap;
+  }
+  #marketDelta { margin-left: auto; font-size: 11px; }
+  .market-chips { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 5px; margin-bottom: 4px; }
+  .market-chips::-webkit-scrollbar { height: 4px; }
+  .mchip {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 3px;
+    background: #1a2030; border: 1px solid #2a3450; color: #d8e4f8;
+    padding: 3px 5px; cursor: pointer; font-family: inherit; font-size: 10px;
+  }
+  .mchip.sel { border-color: #4aa8ff; background: #222a40; }
+  .mchip img { width: 22px; height: 12px; image-rendering: pixelated; }
+  .mchip-name { font-weight: 700; }
+  .mchip-val { font-weight: 700; }
+  #marketChart { display: block; width: 100%; height: auto; margin-top: 2px; border: 1px solid #2a3450; background: #121826; image-rendering: pixelated; }
+  .market-actions {
+    position: sticky; bottom: -10px; z-index: 8;
+    display: flex; gap: 6px;
+    margin: 4px -10px -10px; padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
+    background: linear-gradient(180deg, rgba(20,24,36,.55) 0%, #141824 38%);
+    border-top: 1px solid #2a3450;
+  }
+  .market-actions .btn { flex: 1; min-width: 0; padding: 8px 6px; font-size: 12px; }
+  .market-actions #marketSellFish { flex: 1.35; }
+
+  .modal-box { position: relative; overflow: hidden; }
+  .modal-box > h2, .modal-box > #modalBody, .modal-box > .btn { position: relative; z-index: 3; }
+  #fxFlash { position: fixed; inset: 0; pointer-events: none; opacity: 0; z-index: 70; }
+  #fxFlash.on { animation: fxFlash var(--flash-ms, .46s) ease-out; }
+  @keyframes fxFlash { 0% { opacity: .95; } 65% { opacity: .35; } 100% { opacity: 0; } }
+  .fx-layer { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 2; }
+  .fx-rays {
+    position: absolute; left: 50%; top: 32%; width: 360px; height: 360px;
+    margin: -180px 0 0 -180px; border-radius: 50%;
+    background: repeating-conic-gradient(from 0deg, var(--tier, #ffd24a) 0deg 5deg, transparent 5deg 17deg);
+    -webkit-mask-image: radial-gradient(circle, rgba(0,0,0,.95) 0%, rgba(0,0,0,.55) 36%, transparent 70%);
+    mask-image: radial-gradient(circle, rgba(0,0,0,.95) 0%, rgba(0,0,0,.55) 36%, transparent 70%);
+    mix-blend-mode: screen; opacity: 0;
+    animation: raysBurst 1.15s ease-out forwards;
+  }
+  @keyframes raysBurst {
+    0% { opacity: 0; transform: scale(.2) rotate(0); }
+    16% { opacity: .9; }
+    100% { opacity: 0; transform: scale(1.55) rotate(50deg); }
+  }
+  .fx-wave {
+    position: absolute; left: 50%; top: 32%; width: 88px; height: 88px;
+    margin: -44px 0 0 -44px; border: 2px solid #ffd24a; border-radius: 50%;
+    opacity: 0; animation: waveOut .95s ease-out forwards;
+  }
+  @keyframes waveOut {
+    0% { opacity: .9; transform: scale(.35); }
+    100% { opacity: 0; transform: scale(3.2); }
+  }
+  .fx-spark {
+    position: absolute; left: 50%; top: 32%; width: 4px; height: 4px; margin: -2px;
+    border-radius: 50%; opacity: 0;
+    animation: sparkFly .85s cubic-bezier(.15,.75,.3,1) forwards;
+  }
+  @keyframes sparkFly {
+    0% { opacity: 1; transform: rotate(var(--a)) translateX(12px) scale(1.5); }
+    70% { opacity: .9; }
+    100% { opacity: 0; transform: rotate(var(--a)) translateX(var(--r)) scale(.2); }
+  }
+  .fx-shield {
+    position: absolute; left: 50%; top: 32%; width: 98px; height: 98px;
+    margin: -49px 0 0 -49px; border: 2px solid #8ce8d0; border-radius: 50%;
+    box-shadow: 0 0 26px rgba(140,232,208,.85), inset 0 0 22px rgba(140,232,208,.45);
+    opacity: 0; animation: shieldPop 1.05s ease-out forwards;
+  }
+  @keyframes shieldPop {
+    0% { opacity: 0; transform: scale(.45); }
+    22% { opacity: 1; transform: scale(1.06); }
+    100% { opacity: 0; transform: scale(1.4); }
+  }
+  .fx-ash {
+    position: absolute; top: -10%; display: block; background: #ff6a5a;
+    border-radius: 1px; opacity: 0;
+    box-shadow: 0 0 6px rgba(255,90,74,.7);
+    animation: ashFall 1.05s ease-in forwards;
+  }
+  @keyframes ashFall {
+    0% { opacity: .9; transform: translate3d(0, 0, 0) rotate(0); }
+    100% { opacity: 0; transform: translate3d(var(--dx), 285px, 0) rotate(210deg); }
+  }
+  .modal-box.up-win { animation: upWin 1s ease; }
+  .modal-box.up-charm { animation: charmGlow 1s ease; }
+  .modal-box.up-fail { animation: failShake .5s ease, failRed .7s ease; }
+  .modal-box.up-drop { animation: failShake .65s ease, failRed .9s ease; }
+  .modal-box.up-destroy { animation: destroyShake .7s ease, failRed 1.1s ease; }
+  @keyframes upWin {
+    0% { box-shadow: 0 6px 0 #0b0d14; transform: scale(1); }
+    16% { box-shadow: 0 0 0 3px rgba(255,255,255,.55), 0 0 52px 20px rgba(255,210,74,.85); transform: scale(1.03); }
+    46% { box-shadow: 0 0 34px 12px rgba(255,210,74,.55); transform: scale(1); }
+    100% { box-shadow: 0 6px 0 #0b0d14; transform: scale(1); }
+  }
+  @keyframes charmGlow {
+    0% { box-shadow: 0 6px 0 #0b0d14; }
+    35% { box-shadow: 0 0 40px 16px rgba(140,232,208,.8); }
+    100% { box-shadow: 0 6px 0 #0b0d14; }
+  }
+  @keyframes destroyShake {
+    0%, 100% { transform: translate(0, 0); }
+    15% { transform: translate(-9px, 3px); }
+    32% { transform: translate(9px, -3px); }
+    50% { transform: translate(-6px, 2px); }
+    70% { transform: translate(5px, -1px); }
+    86% { transform: translate(-3px, 0); }
+  }
+  @keyframes failRed {
+    0% { border-color: #ff6a5a; }
+    100% { border-color: #3a4a70; }
+  }
+  .fx-confetti {
+    position: absolute; top: 28%; display: block; border-radius: 1px;
+    pointer-events: none; z-index: 5;
+    animation: confettiFall var(--dur, .95s) ease-out forwards;
+  }
+  @keyframes confettiFall {
+    0% { transform: translate(0, -12px) rotate(0); opacity: 1; }
+    100% { transform: translate(var(--dx), var(--dy, 240px)) rotate(var(--rot, 540deg)); opacity: 0; }
+  }
+  .up-stamp {
+    position: absolute; left: 50%; top: 38%; z-index: 6;
+    transform: translate(-50%, -50%) scale(.3) rotate(-16deg);
+    background: #ffd24a; color: #2a1e00; border: 2px solid #fff3b0;
+    font-size: 19px; font-weight: 900; letter-spacing: 2px; padding: 7px 16px;
+    box-shadow: 0 0 32px rgba(255,210,74,.95), 0 0 64px rgba(255,210,74,.5);
+    pointer-events: none; text-shadow: 0 1px 0 rgba(255,255,255,.5);
+    animation: stampIn 1.35s cubic-bezier(.2,1.6,.4,1) forwards;
+  }
+  .up-stamp.charm {
+    background: #8ce8d0; color: #062a24; border-color: #d0fff2;
+    box-shadow: 0 0 32px rgba(140,232,208,.95), 0 0 64px rgba(140,232,208,.5);
+  }
+  .up-stamp.fail {
+    background: #ff6a5a; color: #2a0e0a; border-color: #ffb0a0;
+    box-shadow: 0 0 32px rgba(255,106,90,.9), 0 0 60px rgba(255,106,90,.45);
+  }
+  @keyframes stampIn {
+    0% { transform: translate(-50%,-50%) scale(.25) rotate(-18deg); opacity: 0; }
+    22% { transform: translate(-50%,-50%) scale(1.28) rotate(-3deg); opacity: 1; }
+    38% { transform: translate(-50%,-50%) scale(.96) rotate(-7deg); opacity: 1; }
+    48% { transform: translate(-50%,-50%) scale(1.04) rotate(-6deg); opacity: 1; }
+    82% { opacity: 1; transform: translate(-50%,-50%) scale(1) rotate(-6deg); }
+    100% { opacity: 0; transform: translate(-50%,-50%) scale(1.08) rotate(-6deg); }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="titlebar">
+    <div class="stat coin">🪙 <span id="uiCoins">0</span></div>
+    <div class="stat basket">🧺 <span id="uiBasket">0/15</span></div>
+    <div class="stat dex">📖 <span id="uiDex">0/20</span></div>
+    <div class="winbtns">
+      <button class="wb" id="btnPin" title="总在最前">📌</button>
+      <button class="wb" id="btnMode" title="收起为桌面宠物">—</button>
+      <button class="wb close" id="btnClose" title="退出">✕</button>
+    </div>
+  </header>
+
+  <div id="stage">
+    <canvas id="game" width="320" height="180"></canvas>
+    <div id="weatherTag">☀️ 晴 20:00</div>
+    <div id="toast"></div>
+  </div>
+
+  <div id="barWrap"><div id="bar"></div></div>
+  <div id="hint">鱼竿 <b>Lv.1</b> · 每 <b>3.2</b> 秒上鱼</div>
+
+  <nav>
+    <button class="tab active" data-tab="fish">钓鱼</button>
+    <button class="tab" data-tab="pond">鱼塘</button>
+    <button class="tab" data-tab="market">鱼市</button>
+    <button class="tab" data-tab="shop">商店</button>
+    <button class="tab" data-tab="dex">图鉴</button>
+  </nav>
+
+  <main>
+    <section id="tab-fish" class="panel active">
+      <div class="bait-bar" id="baitBar"></div>
+      <div class="row">
+        <button id="sellBtn" class="btn primary">卖光鱼篓</button>
+      </div>
+      <div id="basketList" class="basket-list"></div>
+    </section>
+
+    <section id="tab-pond" class="panel">
+      <div class="pond-head">
+        <span>鱼塘产速 <b id="pondRate">0.0</b> /分钟 · 鱼食 <b id="pondFood">0</b></span>
+        <button id="pondExpand" class="btn buy">扩建</button>
+      </div>
+      <div id="pondGrid" class="pond-grid"></div>
+      <div class="pond-tip">放入鱼篓里的鱼，它会持续产金币；点格子可以用鱼食升级品质</div>
+    </section>
+
+    <section id="tab-market" class="panel">
+      <div class="market-head">
+        <span id="marketName">小鲫鱼</span>
+        <span id="marketRate">出率 22%</span>
+        <span id="marketPrice">×1.00</span>
+        <span id="marketSignal">行情平稳</span>
+        <span id="marketDelta">▲ 0.0%</span>
+      </div>
+      <div class="market-chips" id="marketChips"></div>
+      <canvas id="marketChart" width="340" height="82" title="每分钟一根蜡烛 · 最近 10 分钟 · 行情只影响卖价"></canvas>
+      <div class="market-actions">
+        <button id="marketSellFish" class="btn primary">卖出当前鱼种</button>
+        <button id="marketSell" class="btn">卖光鱼篓</button>
+      </div>
+    </section>
+
+    <section id="tab-shop" class="panel">
+      <div class="shop-item">
+        <div class="si-info">
+          <div class="si-title">🎣 鱼竿 <span style="color:#6fd0ff">Lv.<span id="rodLv">1</span></span></div>
+          <div class="si-desc">上鱼更快，低出率鱼加成更高</div>
+        </div>
+        <button id="buyRod" class="btn buy">60</button>
+      </div>
+      <div class="shop-item">
+        <div class="si-info">
+          <div class="si-title">🧺 鱼篓 <span style="color:#6fd0ff">Lv.<span id="basketLv">1</span></span></div>
+          <div class="si-desc">容量 <span id="capNow">15</span> 条，离线上限也更高</div>
+        </div>
+        <button id="buyBasket" class="btn buy">40</button>
+      </div>
+      <div class="shop-item">
+        <div class="si-info">
+          <div class="si-title">🪱 鱼食 <span style="color:#5fcf7a">×<span id="foodNow">0</span></span></div>
+          <div class="si-desc">鱼塘升级材料，只有商店有卖</div>
+        </div>
+        <div class="buy-group">
+          <button id="foodBuy0" class="btn buy">20 · 100🪙</button>
+          <button id="foodBuy1" class="btn buy">100 · 450🪙</button>
+          <button id="foodBuy2" class="btn buy">300 · 1,200🪙</button>
+        </div>
+      </div>
+      <div class="shop-item">
+        <div class="si-info">
+          <div class="si-title">🦐 鲜虾饵 <span style="color:#6fd0ff">×<span id="shrimpNow">0</span></span></div>
+          <div class="si-desc">每次抛竿消耗 1 个，上鱼快 30%</div>
+        </div>
+        <div class="buy-group">
+          <button id="shrimpBuy0" class="btn buy">10 · 60🪙</button>
+          <button id="shrimpBuy1" class="btn buy">30 · 150🪙</button>
+        </div>
+      </div>
+      <div class="shop-item">
+        <div class="si-info">
+          <div class="si-title">✨ 发光饵 <span style="color:#b06cff">×<span id="glowNow">0</span></span></div>
+          <div class="si-desc">每次抛竿消耗 1 个，出率 ≤3% 的鱼权重 ×1.4</div>
+        </div>
+        <div class="buy-group">
+          <button id="glowBuy0" class="btn buy">5 · 45🪙</button>
+          <button id="glowBuy1" class="btn buy">15 · 120🪙</button>
+        </div>
+      </div>
+      <div class="shop-item">
+        <div class="si-info">
+          <div class="si-title">🌾 秘制窝料 <span style="color:#ff8a5a">×<span id="chumNow">0</span>条</span></div>
+          <div class="si-desc">下 10 条鱼：出率 ≤2% 的鱼权重 ×3，钻石+品质权重 ×2；成功上鱼才扣</div>
+        </div>
+        <button id="chumBuy" class="btn buy">600🪙 · +10条</button>
+      </div>
+      <div class="shop-item">
+        <div class="si-info">
+          <div class="si-title">💰 自动卖鱼</div>
+          <div class="si-desc" id="autoSellDesc">除钻石+品质和稀有鱼种外，其余渔获钓到即按行情卖出；篓满暂停挂机</div>
+        </div>
+        <button id="buyAuto" class="btn buy">800</button>
+      </div>
+      <div style="text-align:center;margin-top:18px;">
+        <button id="resetBtn" class="btn" style="font-size:11px;padding:6px 12px;opacity:.6;">重置存档</button>
+      </div>
+    </section>
+
+    <section id="tab-dex" class="panel">
+      <div id="dexSummary" class="dex-summary"></div>
+      <div id="dexGrid" class="dex-grid"></div>
+      <div id="achWrap" class="ach-wrap"></div>
+    </section>
+  </main>
+
+</div>
+
+<div id="fxFlash"></div>
+
+<div id="modal" class="hidden">
+  <div class="modal-box">
+    <h2 id="modalTitle">离线收益</h2>
+    <div id="modalBody"></div>
+    <button id="modalOk" class="btn primary">收下</button>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script src="market.js"></script>
+<script src="scene.js"></script>
+<script src="game.js"></script>
+<script src="ui.js"></script>
+<script src="pet.js"></script>
+</body>
+</html>

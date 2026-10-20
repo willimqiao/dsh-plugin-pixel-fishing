@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Pixel Fishing Pet",
+    "description": "Starts the desktop pixel-fishing pet (a transparent always-on-top window) with DeepSeek Harness, and brings it forward when it is already running."
+  }
+}

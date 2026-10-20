@@ -1,0 +1,7 @@
+{
+  "name": "dsh-desktop-pet",
+  "version": "0.1.0",
+  "private": true,
+  "description": "像素渔场桌面宠物：透明置顶的小窗口，挂机钓鱼",
+  "main": "main.js"
+}

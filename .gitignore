@@ -1,0 +1,15 @@
+.review/
+douyin-shots/
+scene-accept/
+PLAN-v2.md
+preview-orders.png
+node_modules/
+*.log
+Thumbs.db
+.DS_Store
+tools/cdp.mjs
+tools/cdp-shot.mjs
+tools/close.ps1
+tools/launch.ps1
+tools/shot.ps1
+tools/README.md

@@ -1,0 +1,45 @@
+{
+  "name": "dsh-plugin-pixel-fishing",
+  "version": "0.1.0",
+  "description": "像素渔场：DeepSeek Harness 启动时自动拉起桌面像素钓鱼宠物。",
+  "type": "module",
+  "main": "index.js",
+  "icon": "./icon.svg",
+  "exports": {
+    ".": "./index.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/zh.json": "./locale/zh.json",
+    "./locale/en.json": "./locale/en.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "icon.svg",
+    "locale",
+    "app",
+    "install.ps1",
+    "uninstall.ps1",
+    "README.md",
+    "preview-pet.png",
+    "preview-panel.png",
+    "preview-fight.png",
+    "preview-ach.png",
+    "preview-pond.png",
+    "preview-pond-detail.png",
+    "preview-market.png"
+  ],
+  "scripts": {
+    "test": "node tools/test-headless.mjs",
+    "pet:install": "powershell -NoProfile -ExecutionPolicy Bypass -File ./install.ps1",
+    "pet:uninstall": "powershell -NoProfile -ExecutionPolicy Bypass -File ./uninstall.ps1"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}
