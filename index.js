@@ -31,6 +31,8 @@ let installing = false;
 let warned = false;
 let cleanupScheduled = false;
 let disposing = false;
+/** The previous apply was disposed. A fresh apply after that is a new lifecycle and may launch again. */
+let disposedSinceApply = true;
 
 function readMarker() {
   if (!process.env.APPDATA) return null;
@@ -74,12 +76,14 @@ function launch(petPath) {
   const env = { ...process.env };
   // The Harness shell exports ELECTRON_RUN_AS_NODE=1; the pet must start as a GUI.
   delete env.ELECTRON_RUN_AS_NODE;
+  pluginLog(`拉起宠物：${petPath}`);
   try {
     const child = spawn(petPath, [], { detached: true, stdio: 'ignore', env });
     child.on('error', () => {});
     child.unref();
-  } catch {
+  } catch (error) {
     /* A missing or moved pet app must not break the Host. */
+    pluginLog(`拉起失败：${error.message}`);
   }
 }
 
@@ -174,6 +178,15 @@ function cleanupLog(message) {
   }
 }
 
+function pluginLog(message) {
+  try {
+    mkdirSync(DATA_DIR(), { recursive: true });
+    appendFileSync(join(DATA_DIR(), 'plugin.log'), `${new Date().toISOString()} [plugin] ${message}\r\n`);
+  } catch {
+    /* Diagnostics must never break the Host. */
+  }
+}
+
 /**
  * DSH removes a bundle from the running tree before pnpm deletes its package.
  * A normal quit still lists the bundle, so only a real uninstall schedules this.
@@ -237,8 +250,22 @@ function vbsString(value) {
 export function apply(ctx, config = {}) {
   if (!isDesktopHost()) return;
 
+  // A disabled bundle can be enabled again on the same cached module instance.
+  // Treat that apply as a new lifecycle so the pet is launched again.
+  if (disposedSinceApply) {
+    launched = false;
+    installing = false;
+    cleanupScheduled = false;
+    warned = false;
+  }
+  disposing = false;
+  disposedSinceApply = false;
+  pluginLog('应用插件。');
+
   ctx.effect(() => () => {
     disposing = true;
+    disposedSinceApply = true;
+    pluginLog('插件已停用或卸载。');
     scheduleUninstallCleanup(config);
   });
 

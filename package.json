@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-pixel-fishing",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "像素渔场：DeepSeek Harness 启动时自动拉起桌面像素钓鱼宠物。",
   "repository": {
     "type": "git",
