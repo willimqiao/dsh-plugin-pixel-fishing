@@ -936,6 +936,10 @@ BAIT_PACKS.glow.forEach((p, i) => {
 const chumBuyBtn = $('chumBuy');
 if (chumBuyBtn) chumBuyBtn.addEventListener('click', buyChum);
 
+// 鱼塘扩建
+const pondExpandBtn = $('pondExpand');
+if (pondExpandBtn) pondExpandBtn.addEventListener('click', expandPond);
+
 // 重置
 $('resetBtn').addEventListener('click', () => {
   if (!confirm('确定要清空存档，重新开始吗？')) return;

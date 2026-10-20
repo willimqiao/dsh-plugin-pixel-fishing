@@ -21,10 +21,16 @@ function makeCtx2d() {
 }
 
 function makeElement(id) {
+  const listeners = {};
   return {
     id, style: { setProperty() {} }, textContent: '', innerHTML: '', disabled: false, width: 0, height: 0,
     classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } },
-    addEventListener() {}, setPointerCapture() {}, releasePointerCapture() {},
+    addEventListener(type, fn) { (listeners[type] || (listeners[type] = [])).push(fn); },
+    click(extra) {
+      const event = Object.assign({ target: this, currentTarget: this, button: 0, preventDefault() {} }, extra);
+      (listeners.click || []).forEach(fn => fn(event));
+    },
+    setPointerCapture() {}, releasePointerCapture() {},
     querySelector() { return makeElement('x'); },
     querySelectorAll() { return []; },
     appendChild() {}, getContext() { return makeCtx2d(); }, toDataURL() { return ''; },
@@ -418,6 +424,14 @@ assert(run('AMP_COIN_COST.every((c, i, a) => i === 0 || c > a[i - 1])'), 'upgrad
 assert(run('AMP_COIN_COST[0] === 60 && AMP_COIN_COST[8] === 40000'), 'upgrade coin cost table wrong');
 assert(run('FOOD_PACKS.every(p => p.cost / p.food >= 4)'), 'food packs too cheap');
 assert(run('POND_EXPAND[0] >= 1000 && POND_EXPAND.length === 3'), 'pond expansion table wrong');
+run('state.pondSlots = 3; state.food = 0; state.charms = 0; ensurePond(); state.coins = 5000; document.getElementById("pondExpand").click();');
+assert(state().pondSlots === 4 && state().pond.length === 4 && state().coins === 3800, 'pond expand button not wired');
+run('state.coins = 100; document.getElementById("pondExpand").click();');
+assert(state().pondSlots === 4 && state().coins === 100, 'poor pond expansion charged anyway');
+run('state.coins = 100000; document.getElementById("pondExpand").click(); document.getElementById("pondExpand").click();');
+assert(state().pondSlots === 6 && state().pond.length === 6, 'pond expansion did not reach six slots');
+run('document.getElementById("pondExpand").click();');
+assert(state().pondSlots === 6 && state().pond.length === 6, 'pond expanded past the six-slot cap');
 run('state.pond[0].luck = 0;');
 assert(Math.abs(run('ampChance(state.pond[0])') - 0.32) < 1e-9, 'tier3 base chance wrong');
 run('state.pond[0].luck = 50;');
