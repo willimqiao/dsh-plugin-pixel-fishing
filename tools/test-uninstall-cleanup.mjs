@@ -90,6 +90,7 @@ try {
   mkdirSync(join(install2, 'resources', 'app'), { recursive: true });
   writeFileSync(join(install2, 'resources', 'app', 'package.json'), JSON.stringify({ name: 'dsh-desktop-pet', description: '像素渔场桌面宠物' }));
   writeFileSync(manifest2, JSON.stringify({ dependencies: { 'dsh-plugin-pixel-fishing': 'github:willimqiao/dsh-plugin-pixel-fishing' }, dsh: { profile: { bundles: [] } } }));
+  writeFileSync(marker, JSON.stringify({ installDir: install2, petPath: join(install2, 'DeepSeek Harness.exe'), repoDir: pkg2 }));
 
   const keepalive = spawnSync('powershell.exe', [
     '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script,
@@ -101,6 +102,7 @@ try {
   ], { env: { ...process.env, APPDATA: appData }, encoding: 'utf8' });
   if (keepalive.status !== 0) throw new Error(`等待脚本异常退出：${keepalive.stderr}`);
   if (!existsSync(install2)) throw new Error('插件还在清单里时不应删除安装目录');
+  if (!existsSync(marker)) throw new Error('停用插件时不应删除安装位置记录');
 
   rmSync(pkg2, { recursive: true, force: true });
   const updating = spawnSync('powershell.exe', [

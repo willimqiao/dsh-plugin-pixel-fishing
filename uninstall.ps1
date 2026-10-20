@@ -92,7 +92,13 @@ function Get-PetProcesses {
     if ($_.Name -ne $exeName) { return $false }
     $exe = [string]$_.ExecutablePath
     $cmd = [string]$_.CommandLine
-    if ($exe -and $exe.StartsWith($installFull + '\', [StringComparison]::OrdinalIgnoreCase)) { return $true }
+    if ($exe) {
+      # WMI 有时给 8.3 短路径（如 QIAOYI~1），展开成长路径再比
+      $exeFull = $exe
+      try { $exeFull = [IO.Path]::GetFullPath($exe) } catch {}
+      if ($exeFull.StartsWith($installFull + '\', [StringComparison]::OrdinalIgnoreCase) -or
+          $exe.StartsWith($installFull + '\', [StringComparison]::OrdinalIgnoreCase)) { return $true }
+    }
     if ($cmd -and $cmd.IndexOf($installFull, [StringComparison]::OrdinalIgnoreCase) -ge 0) { return $true }
     return $false
   })
@@ -141,28 +147,6 @@ function Remove-PetShortcuts {
 
 Write-Log '开始卸载检查。'
 
-# DSH 先摘插件、再 pnpm remove；等包目录和清单都安静下来才真正动手。
-# 只停用或只是重载时包目录还在，等到超时就放弃。
-if ($WaitForPath) {
-  $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
-  $absentSince = $null
-  while ((Get-Date) -lt $deadline) {
-    $stillInstalled = (Test-Path -LiteralPath $WaitForPath) -or -not (Test-PluginGone)
-    if ($stillInstalled) {
-      $absentSince = $null
-    } elseif ($null -eq $absentSince) {
-      $absentSince = Get-Date
-    } elseif (((Get-Date) - $absentSince).TotalSeconds -ge 5) {
-      break
-    }
-    Start-Sleep -Milliseconds 500
-  }
-  if ((Test-Path -LiteralPath $WaitForPath) -or -not (Test-PluginGone)) {
-    Write-Log '插件仍在安装，跳过自动卸载。'
-    exit 0
-  }
-}
-
 if (-not $InstallDir -and (Test-Path -LiteralPath $markerPath)) {
   try {
     $marked = (Get-Content -LiteralPath $markerPath -Raw -Encoding UTF8 | ConvertFrom-Json).installDir
@@ -199,6 +183,41 @@ if ($installFull -match '^[A-Za-z]:$' -or $installFull -ieq $repoFull -or $repoF
 } elseif ($existed -and -not (Test-PetInstall $InstallDir)) {
   Write-Log "目录里找不到像素渔场，跳过删除：$InstallDir"
   $safeToDelete = $false
+}
+
+# 组合包开关关闭和卸载都会走到这里：DSH 先摘 bundles，再触发 dispose。
+# 两种情况都立刻关掉宠物；只有包真的被 pnpm 删掉，才清理安装目录。
+if ($WaitForPath) {
+  $running = @(Get-PetProcesses)
+  if ($running.Count -gt 0) {
+    Write-Log ('插件已从组合包中移除，关闭宠物进程：' + (($running | ForEach-Object { $_.ProcessId }) -join ', '))
+    if (Stop-PetProcesses) {
+      Write-Log '宠物进程已结束。'
+    } else {
+      Write-Log '仍有宠物进程无法结束，稍后重试。'
+    }
+  } else {
+    Write-Log '插件已从组合包中移除，宠物未在运行。'
+  }
+
+  # 卸载随后会执行 pnpm remove；停用时包目录和依赖会一直保留。
+  $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+  $absentSince = $null
+  while ((Get-Date) -lt $deadline) {
+    $stillInstalled = (Test-Path -LiteralPath $WaitForPath) -or -not (Test-PluginGone)
+    if ($stillInstalled) {
+      $absentSince = $null
+    } elseif ($null -eq $absentSince) {
+      $absentSince = Get-Date
+    } elseif (((Get-Date) - $absentSince).TotalSeconds -ge 5) {
+      break
+    }
+    Start-Sleep -Milliseconds 500
+  }
+  if ((Test-Path -LiteralPath $WaitForPath) -or -not (Test-PluginGone)) {
+    Write-Log '插件已停用，宠物已关闭，安装保留。'
+    exit 0
+  }
 }
 
 if ($safeToDelete -and $existed) {
