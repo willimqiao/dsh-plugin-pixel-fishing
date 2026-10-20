@@ -248,6 +248,8 @@ $pet = "$env:LOCALAPPDATA\Programs\dsh-plugin-pixel-fishing\DeepSeek Harness.exe
 - 找不到宠物时，自动运行包内的 `install.ps1 -CopyApp`，装完再拉起；
 - 宠物是独立进程，Harness 退出后它继续留在桌面上；
 - 每个 Host 生命周期只尝试一次，HMR 重载不会反复拉窗口或重复安装；
+- 在 DSH 里卸载插件时，等包真正从 `node_modules` 移除后，自动清理宠物本体、快捷方式和
+  `dsh-pet://` 协议；正常退出、停用或 HMR 重载不会误删（存档仍保留）；
 - 查找顺序：`config.petPath` → 环境变量 `DSH_PIXEL_FISHING_PET` → `install.json` 记录 →
   `D:\deepseek-pet` → `%LOCALAPPDATA%` 下的默认位置。
 
@@ -265,12 +267,20 @@ $pet = "$env:LOCALAPPDATA\Programs\dsh-plugin-pixel-fishing\DeepSeek Harness.exe
 
 ## 卸载
 
+推荐直接在 DSH 的插件页卸载：插件会在包被删掉后自动清理宠物本体、桌面/开机快捷方式和
+`dsh-pet://` 协议登记。
+
+也可以手动跑：
+
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\uninstall.ps1
 ```
 
 卸载脚本会读取 `install.json` 找到安装位置，删除运行时、桌面/开机快捷方式和
 `dsh-pet://` 协议登记；存档目录 `%APPDATA%\dsh-desktop-pet` 保留，加 `-Purge` 一并删除。
+
+自动清理只在 DSH 运行中卸载时生效；本地 `link:` 安装、或者 DSH 关闭后用命令行删包不会
+触发，手动跑一次上面的脚本即可。插件只是停用（没有卸载）时宠物不会被删。
 
 ## 结构
 
@@ -306,10 +316,14 @@ dsh-plugin-pixel-fishing/
 
 ```powershell
 node tools/test-headless.mjs
+node tools/test-uninstall-cleanup.mjs
 ```
 
 无头测试会加载 `config → market → scene → game → ui` 并检查出率、权重、鱼市、商店、
 图鉴、存档迁移和自动卖鱼规则，不需要打开窗口。
+
+卸载测试用临时 profile、临时安装目录和临时 `APPDATA` 验证「DSH 卸包后自动清理」，
+不会碰本机真实宠物和存档。
 
 ## 已知取舍
 
