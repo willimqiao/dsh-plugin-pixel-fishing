@@ -5,34 +5,24 @@
 
 ![宠物模式](preview-pet.png)
 
-## 安装成 DSH 插件（Windows）
+## 安装成 DSH 插件（Windows，一条命令）
 
-1. 克隆仓库并安装桌面宠物本体：
+打开 DSH 的「插件」页 →「添加插件」，填入
+`https://github.com/willimqiao/dsh-plugin-pixel-fishing`；也可以用 CLI：
 
-   ```powershell
-   git clone https://github.com/willimqiao/dsh-plugin-pixel-fishing.git
-   cd dsh-plugin-pixel-fishing
-   powershell -ExecutionPolicy Bypass -File .\install.ps1 -CopyApp
-   ```
+```powershell
+dsh plugin --profile desktop add https://github.com/willimqiao/dsh-plugin-pixel-fishing
+```
 
-   `-CopyApp` 会把游戏复制到安装目录，之后插件升级或仓库挪走都不影响宠物。
-   自己改代码开发时去掉它，安装脚本会把 `resources\app` 联接到仓库的 `app\`，改完刷新即可。
+重启 DSH。**首次启动会自动安装宠物本体**：复用 DSH 的 Electron 运行时，装到
+`%LOCALAPPDATA%\Programs\dsh-plugin-pixel-fishing`，装好后宠物自己出现；
+以后启动只负责把它拉起来，已经在运行就唤到前面。
 
-2. 打开 DSH 的「插件」页 →「添加插件」，填入
-   `https://github.com/willimqiao/dsh-plugin-pixel-fishing`；也可以用 CLI：
+> 自动安装要准备约 270 MB 运行时（同盘硬链接，跨盘复制），第一次会等几秒到十几秒，期间 DSH 照常使用。
+> 不想自动安装：在插件配置里设 `autoInstall: false`，再按下面的「安装桌面宠物本体」手动装。
 
-   ```powershell
-   dsh plugin --profile desktop add https://github.com/willimqiao/dsh-plugin-pixel-fishing
-   ```
-
-3. 重启 DSH。插件会在启动约 1 秒后拉起宠物；已经在运行就只唤到前面。
-
-> 以前装过 `idle-fishing` 启动器的话，先把它移除。单实例锁不会开出第二个窗口，
-> 但两个启动器会抢着启动，没必要同时留着。
-
-如果插件是从插件市场/包名安装的，安装脚本在
-`%USERPROFILE%\.dsh\profiles\desktop\node_modules\dsh-plugin-pixel-fishing\install.ps1`；
-从本地目录或 GitHub 安装的，就在你填的目录里。
+以前装过 `idle-fishing` 启动器的话，先把它移除。单实例锁不会开出第二个窗口，
+但两个启动器会抢着启动，没必要同时留着。
 
 ## 两种形态
 
@@ -197,11 +187,17 @@
 - 关掉窗口（`✕` 或托盘退出）才算退出；它不占任务栏。
 - 游戏进度存在 `%APPDATA%\dsh-desktop-pet`，和聊天里的版本互不影响。
 
-## 安装桌面宠物本体
+## 安装桌面宠物本体（手动 / 开发）
+
+插件首次启动时会自动跑这一节；只有关掉了 `autoInstall`、或者想改代码时才需要手动执行。
 
 `install.ps1` 依赖本机已安装的 DeepSeek Harness：复用它的 Electron 运行时，
 能硬链接就硬链接，跨盘时退回复制；`resources\app` 默认做成指向本仓库 `app\` 的目录联接，
 所以改完代码重开宠物就生效。
+
+脚本就在插件包目录里（从插件市场/包名装的在
+`%USERPROFILE%\.dsh\profiles\desktop\node_modules\dsh-plugin-pixel-fishing\`，
+从 GitHub 地址或本地目录装的就在对应目录）：
 
 安装位置默认沿用 `D:\deepseek-pet`（如果它已经存在），否则装到
 `%LOCALAPPDATA%\Programs\dsh-plugin-pixel-fishing`；可以用 `-InstallDir` 指定。
@@ -248,8 +244,9 @@ $pet = "$env:LOCALAPPDATA\Programs\dsh-plugin-pixel-fishing\DeepSeek Harness.exe
 `pixel-fishing` 是一个 **host-only 启动器**：
 
 - Harness 启动约 1 秒后自动拉起桌面宠物；已经在运行就只把它唤到前面；
+- 找不到宠物时，自动运行包内的 `install.ps1 -CopyApp`，装完再拉起；
 - 宠物是独立进程，Harness 退出后它继续留在桌面上；
-- 每个 Host 生命周期只尝试启动一次，HMR 重载不会反复拉窗口；
+- 每个 Host 生命周期只尝试一次，HMR 重载不会反复拉窗口或重复安装；
 - 查找顺序：`config.petPath` → 环境变量 `DSH_PIXEL_FISHING_PET` → `install.json` 记录 →
   `D:\deepseek-pet` → `%LOCALAPPDATA%` 下的默认位置。
 
@@ -259,10 +256,11 @@ $pet = "$env:LOCALAPPDATA\Programs\dsh-plugin-pixel-fishing\DeepSeek Harness.exe
 - id: pixel-fishing
   config:
     autoStart: true                       # false 则不自启
+    autoInstall: true                     # false 则缺失时不自动安装
     petPath: 'D:\deepseek-pet\DeepSeek Harness.exe'
 ```
 
-宠物没安装时插件不会影响 Host，只在控制台打一条提醒。
+宠物没安装且自动安装失败时，插件不影响 Host，只在控制台打一条提醒。
 
 ## 卸载
 
