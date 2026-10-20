@@ -77,13 +77,16 @@ function fishWeight(fish, opts) {
     if (fish.id === 'koi') w *= 2.5;
     else if (fish.id === 'grass') w *= 1.3;
     else if (fish.id === 'golden') w *= 2;
+    else if (fish.id === 'whaleshark') w *= 2;
   } else if (weather === 'rain') {
     if (fish.id === 'eel') w *= 3.5;
     else if (fish.id === 'catfish') w *= 2.5;
+    else if (fish.id === 'frilled') w *= 2;
   } else if (weather === 'night') {
     if (fish.id === 'lantern') w *= 4;
     else if (fish.id === 'starlight') w *= 2.2;
     else if (fish.id === 'ghost') w *= 1.3;
+    else if (fish.id === 'coelacanth') w *= 2;
   }
 
   if (bait === 'glow' && fish.rate <= BAITS.glow.rateMax) w *= BAITS.glow.rare;

@@ -114,7 +114,7 @@ const ACHIEVEMENTS = [
   /* 收集 */
   { id: 'dex6',       name: '图鉴半成', desc: '收集 6 种鱼',            cat: '收集', reward: 100, goal: 6,    get: () => dexCount(),                               test: () => dexCount() >= 6 },
   { id: 'dex12',      name: '图鉴大成', desc: '收集 12 种鱼',           cat: '收集', reward: 300, goal: 12,   get: () => dexCount(),                               test: () => dexCount() >= 12 },
-  { id: 'dex20',      name: '图鉴全满', desc: '收集全部 20 种鱼',       cat: '收集', reward: 800, goal: 20,   get: () => dexCount(),                               test: () => dexCount() >= 20 },
+  { id: 'dex20',      name: '图鉴全满', desc: '收集全部 23 种鱼',       cat: '收集', reward: 1500, goal: 23,  get: () => dexCount(),                               test: () => dexCount() >= 23 },
   { id: 'max100',     name: '百厘米俱乐部', desc: '钓到一条 100cm 的鱼', cat: '收集', reward: 120, goal: 100, get: s => s.stats.maxSize },
   { id: 'max200',     name: '巨物猎人', desc: '钓到一条 200cm 的鱼',    cat: '收集', reward: 260, goal: 200,  get: s => s.stats.maxSize },
   { id: 'basket5',    name: '五鱼待沽', desc: '鱼篓同时有 5 种鱼',      cat: '收集', reward: 100, goal: 5,    get: () => basketSpecies() },
@@ -149,8 +149,8 @@ const ACHIEVEMENTS = [
 /* rank 只用于隐藏的搏鱼手感、鱼竿加成和行情波动，不在界面显示。
    rate 是基础出率百分比，rod / 天气 / 鱼饵 / 打窝会在此基础上改变权重。 */
 const FISH = [
-  { id:'crucian',   name:'小鲫鱼',     rank:0, rate:22,   value:2,    size:[10,30],   pattern:'scales',   colors:{ body:'#93aabb', fin:'#6d8898', belly:'#b8ccd8' } },
-  { id:'loach',     name:'泥鳅',       rank:0, rate:18,   value:3,    size:[10,25],   pattern:'spots',    colors:{ body:'#8a7a55', fin:'#6a5c3d', belly:'#a89870' }, accent:'#5f5038' },
+  { id:'crucian',   name:'小鲫鱼',     rank:0, rate:21.99, value:2,   size:[10,30],   pattern:'scales',   colors:{ body:'#93aabb', fin:'#6d8898', belly:'#b8ccd8' } },
+  { id:'loach',     name:'泥鳅',       rank:0, rate:17.99, value:3,   size:[10,25],   pattern:'spots',    colors:{ body:'#8a7a55', fin:'#6a5c3d', belly:'#a89870' }, accent:'#5f5038' },
   { id:'grass',     name:'草鱼',       rank:0, rate:15,   value:4,    size:[40,110],  pattern:'stripes',  colors:{ body:'#7a9a5a', fin:'#5c7a42', belly:'#9ab878' }, accent:'#5c7a42' },
   { id:'bass',      name:'鲈鱼',       rank:0, rate:9,    value:6,    size:[25,70],   pattern:'spots',    colors:{ body:'#a8b8c0', fin:'#6a7f8c', belly:'#d8e2e8' }, accent:'#4a5a66' },
   { id:'salmon',    name:'三文鱼',     rank:0, rate:6,    value:8,    size:[50,100],  pattern:'stripes',  colors:{ body:'#b8c8d0', fin:'#7a8a96', belly:'#e8f0f4' }, accent:'#d87a6a' },
@@ -169,6 +169,9 @@ const FISH = [
   { id:'shark',     name:'大白鲨',     rank:4, rate:0.15, value:300,  size:[300,600], pattern:'shark',    colors:{ body:'#7a8894', fin:'#4a5866', belly:'#d8e0e8' }, accent:'#2a3440' },
   { id:'starlight', name:'皇带鱼',     rank:5, rate:0.03, value:800,  size:[300,800], pattern:'stars',    shape:'long', colors:{ body:'#d8e8f0', fin:'#e05a4a', belly:'#f6fbff' }, accent:'#ffe066' },
   { id:'ghost',     name:'巨骨舌鱼',   rank:5, rate:0.02, value:1200, size:[200,450], pattern:'koi',      shape:'long', colors:{ body:'#6a7a5a', fin:'#a83a3a', belly:'#b8a878' }, accent:'#c84a3a' },
+  { id:'coelacanth', name:'腔棘鱼',    rank:5, rate:0.01,  value:1500, size:[150,200],  pattern:'scales',  colors:{ body:'#3e5a7a', fin:'#26384e', belly:'#7a9ab8' }, accent:'#d8ecff' },
+  { id:'whaleshark', name:'鲸鲨',      rank:5, rate:0.006, value:2200, size:[400,1200], pattern:'spots',   colors:{ body:'#4a6a8a', fin:'#2e4a66', belly:'#d8e4ee' }, accent:'#eaf4ff' },
+  { id:'frilled',    name:'皱鳃鲨',    rank:5, rate:0.004, value:3200, size:[120,200],  pattern:'long',    shape:'long', colors:{ body:'#5a4640', fin:'#3a2c28', belly:'#8a7068' }, accent:'#d84a3a' },
 ];
 const FISH_MAP = {};
 const FISH_INDEX = {};
@@ -196,5 +199,6 @@ function fishColor(fish) {
 function fishRateLabel(fish) {
   const rate = Number(fish && fish.rate) || 0;
   if (rate >= 1) return `${Math.round(rate * 10) / 10}%`;
-  return `${rate.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}%`;
+  if (rate >= 0.01) return `${rate.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}%`;
+  return `${rate.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')}%`;
 }

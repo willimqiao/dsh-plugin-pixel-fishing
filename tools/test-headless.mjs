@@ -93,9 +93,9 @@ function setRandom(seq) {
   run(`Math.random = (function(){ var seq = ${JSON.stringify(seq)}; return function(){ return seq.length ? seq.shift() : 0.5; }; })()`);
 }
 
-// ---- fish table: 20 real fish, per-fish rates sum to 100% -------------------
-assert(run('FISH.length') === 20, 'fish count should be 20');
-assert(run('new Set(FISH.map(f => f.id)).size') === 20, 'duplicate fish ids');
+// ---- fish table: 23 real fish, per-fish rates sum to 100% -------------------
+assert(run('FISH.length') === 23, 'fish count should be 23');
+assert(run('new Set(FISH.map(f => f.id)).size') === 23, 'duplicate fish ids');
 assert(Math.abs(run('FISH.reduce((n, f) => n + f.rate, 0)') - 100) < 1e-9, 'fish rates should sum to 100');
 assert(run('FISH.every(f => f.rate > 0 && Number.isInteger(f.rank) && f.rank >= 0 && f.rank <= 5)'), 'fish rate/rank invalid');
 assert(run('FISH.every(f => f.value > 0 && Array.isArray(f.size) && f.size[0] < f.size[1])'), 'fish value/size invalid');
@@ -106,12 +106,16 @@ assert(run('fishRateLabel(FISH_MAP.koi)') === '2.5%', 'koi rate label wrong');
 assert(run('fishRateLabel(FISH_MAP.sword)') === '0.8%', 'sword rate label wrong');
 assert(run('fishRateLabel(FISH_MAP.starlight)') === '0.03%', 'starlight rate label wrong');
 assert(run('fishRateLabel(FISH_MAP.ghost)') === '0.02%', 'ghost rate label wrong');
+assert(run('fishRateLabel(FISH_MAP.coelacanth)') === '0.01%', 'coelacanth rate label wrong');
+assert(run('fishRateLabel(FISH_MAP.whaleshark)') === '0.006%', 'whaleshark rate label wrong');
+assert(run('fishRateLabel(FISH_MAP.frilled)') === '0.004%', 'frilled shark rate label wrong');
 assert(run('fishColor(FISH_MAP.crucian) === "#9aa4b8"'), 'common fish color wrong');
 assert(run('fishColor(FISH_MAP.bass) === "#5fcf7a"'), 'uncommon fish color wrong');
 assert(run('fishColor(FISH_MAP.grouper) === "#4aa8ff"'), 'rare fish color wrong');
 assert(run('fishColor(FISH_MAP.eel) === "#b06cff"'), 'epic fish color wrong');
 assert(run('fishColor(FISH_MAP.golden) === "#ffb03a"'), 'legendary fish color wrong');
 assert(run('fishColor(FISH_MAP.starlight) === "#ff5c8a"'), 'mythic fish color wrong');
+assert(run('fishColor(FISH_MAP.frilled) === "#ff5c8a"'), 'ultra rare fish color wrong');
 
 // ---- M1: bite -> hook -> fight -> catch ------------------------------------
 for (let i = 0; i < 3000; i += 1) {
@@ -187,7 +191,7 @@ run('state.dexStats = {}; state.dex = {}; ensureDexStats(); updateDex(FISH_MAP.c
 assert(state().dexStats.carp.n === 1 && state().dexStats.carp.max === 40, 'dex not updated');
 assert(state().dexStats.carp.bestQ === undefined, 'dex still stores old quality');
 assert(run('dexCount()') === 1, 'dex count wrong');
-run('var __dex = state.dexStats; state.dexStats = Object.fromEntries(FISH.map(f => [f.id, {n:1,max:0,first:1}])); if (dexBonus() !== 0.15) throw new Error("dex20 bonus wrong"); state.dexStats = __dex;');
+run('var __dex = state.dexStats; state.dexStats = Object.fromEntries(FISH.map(f => [f.id, {n:1,max:0,first:1}])); if (dexBonus() !== 0.15) throw new Error("full dex bonus wrong"); state.dexStats = __dex;');
 
 // ---- weights: weather / bait / rod / chum ---------------------------------
 run('state.rod = 1; state.castBait = "worm"; state.chum = 0; curWeather = WEATHERS[0];');
@@ -211,6 +215,20 @@ const lanternNight = run('fishWeight(FISH_MAP.lantern)');
 const lanternSun = (() => { run('curWeather = WEATHERS[0];'); return run('fishWeight(FISH_MAP.lantern)'); })();
 assert(lanternNight > lanternSun * 3.9, 'night does not boost lantern fish');
 
+run('curWeather = WEATHERS[2];');
+const coelacanthNight = run('fishWeight(FISH_MAP.coelacanth)');
+run('curWeather = WEATHERS[0];');
+const coelacanthSun = run('fishWeight(FISH_MAP.coelacanth)');
+assert(coelacanthNight > coelacanthSun * 1.9, 'night does not boost coelacanth');
+const whalesharkSun = run('fishWeight(FISH_MAP.whaleshark)');
+run('curWeather = WEATHERS[1];');
+const whalesharkRain = run('fishWeight(FISH_MAP.whaleshark)');
+assert(whalesharkSun > whalesharkRain * 1.9, 'sunny does not boost whale shark');
+const frilledRain = run('fishWeight(FISH_MAP.frilled)');
+run('curWeather = WEATHERS[0];');
+const frilledSun = run('fishWeight(FISH_MAP.frilled)');
+assert(frilledRain > frilledSun * 1.9, 'rain does not boost frilled shark');
+
 run('state.rod = 21; curWeather = WEATHERS[0]; state.castBait = "worm";');
 const starlightBoost = run('fishWeight(FISH_MAP.starlight) / FISH_MAP.starlight.rate');
 const crucianBoost = run('fishWeight(FISH_MAP.crucian) / FISH_MAP.crucian.rate');
@@ -220,7 +238,7 @@ run('state.rod = 1;');
 setRandom([0]);
 assert(run('rollFish().id') === 'crucian', 'rollFish first weight wrong');
 setRandom([0.999999]);
-assert(run('rollFish().id') === 'ghost', 'rollFish last weight wrong');
+assert(run('rollFish().id === FISH[FISH.length - 1].id'), 'rollFish last weight wrong');
 
 run('state.chum = 10; curWeather = WEATHERS[0]; state.castBait = "worm"; state.rod = 1;');
 const lanternChum = run('fishWeight(FISH_MAP.lantern)');
@@ -422,6 +440,7 @@ assert(run('new Set(ACHIEVEMENTS.map(a => a.id)).size') === 34, 'duplicate achie
 assert(run('ACHIEVEMENTS.every(a => ACH_CATEGORIES.includes(a.cat))'), 'achievement category invalid');
 assert(run('ACHIEVEMENTS.filter(a => a.get && a.goal).length') >= 20, 'too few progress achievements');
 assert(run('ACHIEVEMENTS.some(a => a.id === "dex20") && ACHIEVEMENTS.some(a => a.id === "chum30")'), 'new achievements missing');
+assert(run('ACHIEVEMENTS.find(a => a.id === "dex20").goal') === run('FISH.length'), 'dex achievement goal should match fish count');
 run('state.ach = {}; state.coins = 20000; ensureDexStats();');
 const achBefore = state().coins;
 run('checkAchievements()');
@@ -527,4 +546,4 @@ assert(!('orders' in saved) && !('ordersDay' in saved) && !('ordersDone' in save
 assert(typeof saved.marketSeed === 'number' && saved.marketSeed > 0, 'market seed not saved');
 assert(!('phase' in saved) && !('fight' in saved) && !('castBait' in saved), 'transient state leaked');
 
-console.log('PASS  caught=' + state().totalCaught + '  20 fish rates ok  weights ok  pond/upgrade ok  market ok  shop/chum ok  dex/v8 migration ok  save ok');
+console.log('PASS  caught=' + state().totalCaught + '  23 fish rates ok  weights ok  pond/upgrade ok  market ok  shop/chum ok  dex/v8 migration ok  save ok');

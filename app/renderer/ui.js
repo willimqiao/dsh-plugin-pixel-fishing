@@ -24,7 +24,7 @@ function updateUI() {
   if (tag) {
     tag.textContent = `${w.icon} ${w.name} ${mm}:${ss}`;
     tag.style.color = w.color;
-    tag.title = '天气每 20 分钟轮换：晴天锦鲤 / 金鳟更活跃，雨天鳗鱼 / 鲶鱼，夜晚鮟鱇鱼 / 皇带鱼';
+    tag.title = '天气每 20 分钟轮换：晴天锦鲤 / 金鳟 / 鲸鲨更活跃，雨天鳗鱼 / 鲶鱼 / 皱鳃鲨，夜晚鮟鱇鱼 / 皇带鱼 / 腔棘鱼';
   }
   renderBaits();
 
