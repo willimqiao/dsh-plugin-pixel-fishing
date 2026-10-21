@@ -716,6 +716,14 @@ function openPond(slotIndex, result) {
   const luck = slot.luck || 0;
   const dropRisk = max ? 0 : AMP_DROP[slot.tier - 1];
   const destroyRisk = max ? 0 : AMP_DESTROY[slot.tier - 1];
+  const charmPrice = max ? 0 : charmCost(slot.tier);
+  const charmFull = state.charms >= CHARM_LIMIT;
+  const charmLabel = charmFull
+    ? `保护符已满 · ${state.charms}/${CHARM_LIMIT}`
+    : `买保护符 · ${charmPrice.toLocaleString()}🪙（现有 ${state.charms}/${CHARM_LIMIT}）`;
+  const charmBtn = destroyRisk > 0
+    ? `<button class="btn" id="charmBtn" ${state.coins < charmPrice || charmFull ? 'disabled' : ''}>${charmLabel}</button>`
+    : '';
   const lacks = [];
   if (!max && state.food < foodCost) lacks.push(`鱼食 ${Math.ceil(foodCost - state.food)}`);
   if (!max && state.coins < coinCost) lacks.push(`金币 ${Math.ceil(coinCost - state.coins)}`);
@@ -765,13 +773,13 @@ function openPond(slotIndex, result) {
     <button class="btn primary" id="ampBtn" ${lacks.length ? 'disabled' : ''}>
       ${ampLabel}
     </button>
-    <button class="btn" id="charmBtn" ${state.coins < CHARM_COST ? 'disabled' : ''}>买保护符 · ${CHARM_COST}🪙（现有 ${state.charms}）</button>`}
+    ${charmBtn}`}
     <button class="btn" id="pondRemove" style="font-size:11px;opacity:.7">取出并折现</button>
   `);
 
   if (!max) {
     $('ampBtn').onclick = () => amplify(slotIndex);
-    $('charmBtn').onclick = () => buyCharm(slotIndex);
+    if (destroyRisk > 0) $('charmBtn').onclick = () => buyCharm(slotIndex);
   }
   $('pondRemove').onclick = () => removeFromPond(slotIndex);
 

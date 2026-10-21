@@ -396,7 +396,7 @@ function ensurePond() {
   while (state.pond.length < state.pondSlots) state.pond.push(null);
   state.pond.length = state.pondSlots;
   state.food = Math.max(0, Math.floor(Number(state.food) || 0));
-  state.charms = Math.max(0, Math.floor(Number(state.charms) || 0));
+  state.charms = Math.min(CHARM_LIMIT, Math.max(0, Math.floor(Number(state.charms) || 0)));
 
   state.pond = state.pond.map(slot => {
     if (!slot || !FISH_MAP[slot.id]) return null;
@@ -431,6 +431,10 @@ function ensurePond() {
 
 function tierOf(slot) {
   return TIERS[Math.min(TIERS.length, Math.max(1, slot.tier || 1)) - 1];
+}
+
+function charmCost(tier) {
+  return CHARM_COSTS[tier - 1] || 0;
 }
 
 function slotRate(slot) {
@@ -660,13 +664,24 @@ function finishRoll(index, result, name, foodCost, coinCost) {
 }
 
 function buyCharm(index) {
-  if (state.coins < CHARM_COST) {
+  const slot = state.pond[index];
+  if (!slot) return;
+  const cost = charmCost(slot.tier);
+  if (cost <= 0) {
+    toast('当前品质不会跑鱼，用不到保护符', '#8fa0c0');
+    return;
+  }
+  if (state.charms >= CHARM_LIMIT) {
+    toast(`保护符最多带 ${CHARM_LIMIT} 个`, '#ff8a5a');
+    return;
+  }
+  if (state.coins < cost) {
     toast('金币不够', '#ff8a5a');
     return;
   }
-  state.coins -= CHARM_COST;
+  state.coins -= cost;
   state.charms += 1;
-  toast(`买了一个保护符（现有 ${state.charms}）`, '#8ce8d0');
+  toast(`买了一个保护符（${cost.toLocaleString()}🪙，现有 ${state.charms}/${CHARM_LIMIT}）`, '#8ce8d0');
   beep(760, 0.08, 'square', 0.04);
   openPond(index);
   updateUI();
@@ -1211,7 +1226,7 @@ function ensureState() {
   state.autoSell = Boolean(state.autoSell);
   state.autoSellOwned = Boolean(state.autoSellOwned || state.autoSell);
   state.food = clampInt(state.food, 0, 1e9, 0);
-  state.charms = clampInt(state.charms, 0, 1e9, 0);
+  state.charms = clampInt(state.charms, 0, CHARM_LIMIT, 0);
   state.pondSlots = clampInt(state.pondSlots, 3, 6, 3);
   state.marketSel = FISH_MAP[state.marketSel] ? state.marketSel : FISH[0].id;
   state.marketSeed = clampInt(state.marketSeed, 1, 2147483647, Math.floor(Math.random() * 2147483646) + 1);
@@ -1281,12 +1296,17 @@ function load() {
     const s = JSON.parse(raw);
     if (!s || typeof s !== 'object' || Array.isArray(s)) throw new Error('invalid save shape');
     const wasMigrated = Boolean(s.qualityPaid);
+    const extraCharms = Math.max(0, Math.floor(Number(s.charms) || 0) - CHARM_LIMIT);
     state.qualityComp = 0;
     state.qualityPaid = wasMigrated;
     Object.assign(state, s);
     ensureState();
+    if (extraCharms > 0) {
+      // 保护符改为上限 1 个后，旧存档多出的部分按原价 600 退还
+      state.coins = Math.min(1e12, state.coins + extraCharms * 600);
+    }
     // 迁移后立刻落盘（保留 lastActive，交回 init 做离线结算），避免下次重复折算
-    if (!wasMigrated) save(true);
+    if (!wasMigrated || extraCharms > 0) save(true);
     state.castBait = 'worm';
     // 瞬时状态一律从干净的抛竿开始
     state.phase = PHASE.IDLE;

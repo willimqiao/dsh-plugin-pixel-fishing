@@ -322,8 +322,16 @@ run('amplify(0)');
 assert(state().pond[0].tier === 5, 'pity failed');
 assert(state().food === 640 && state().coins === 200, 'pity cost wrong');
 
-run('state.coins = 1000; state.charms = 0; buyCharm(0);');
-assert(state().charms === 1 && state().coins === 400, 'charm purchase wrong');
+assert(run('charmCost(1)') === 0 && run('charmCost(3)') === 0, 'low tier charm should cost nothing');
+assert(run('charmCost(4)') === 1200 && run('charmCost(5)') === 3000, 'low tier charm price wrong');
+assert(run('charmCost(6)') === 7200 && run('charmCost(9)') === 80000, 'high tier charm price wrong');
+
+run('state.pond[0].tier = 5; state.coins = 10000; state.charms = 0; buyCharm(0);');
+assert(state().charms === 1 && state().coins === 7000, 'charm purchase wrong');
+run('state.coins = 10000; buyCharm(0);');
+assert(state().charms === 1 && state().coins === 10000, 'charm cap not enforced');
+run('state.pond[0].tier = 3; state.coins = 100000; state.charms = 0; buyCharm(0);');
+assert(state().charms === 0 && state().coins === 100000, 'charm sold before destroy risk');
 
 run('state.pond[0] = {id:"carp", tier:10, luck:0, born:Date.now()}; state.food = 1000;');
 run('amplify(0)');
@@ -541,7 +549,7 @@ state.orders = [{id:"dragon", qty:99}]; state.ordersDay = "2026-1-1"; state.ach 
 ensureState();`);
 const robust = state();
 assert(robust.coins === 0 && robust.rod === 1 && robust.basketLv === 1, 'numeric state not clamped');
-assert(robust.food === 0 && robust.charms === 5 && robust.chum === 30 && robust.pondSlots === 6, 'food/charms/chum/slots not normalized');
+assert(robust.food === 0 && robust.charms === 1 && robust.chum === 30 && robust.pondSlots === 6, 'food/charms/chum/slots not normalized');
 assert(robust.marketSel === 'crucian', 'unknown market selection kept');
 assert(robust.basket.length === 2 && robust.basket.every(it => it.id === 'carp' && it.v >= 1 && it.s >= 0 && it.tier >= 1 && !('q' in it)), 'basket not sanitized');
 assert(!('nope' in robust.dex) && !('nope' in robust.dexStats), 'unknown dex entries kept');
@@ -633,5 +641,18 @@ assert(!('perfects' in saved.stats) && !('bestRarity' in saved.stats), 'legacy q
 assert(!('orders' in saved) && !('ordersDay' in saved) && !('ordersDone' in saved.stats), 'legacy order fields leaked into save');
 assert(typeof saved.marketSeed === 'number' && saved.marketSeed > 0, 'market seed not saved');
 assert(!('phase' in saved) && !('fight' in saved) && !('castBait' in saved), 'transient state leaked');
+
+// ---- charm cap migration: extra charms refunded at legacy price ------------
+const charmLegacy = {
+  saveVer: 8, qualityPaid: true, coins: 500, charms: 3, pond: [], pondSlots: 3,
+  basket: [], dex: {}, dexStats: {}, ach: {}, stats: {}, marketSeed: 42,
+  lastActive: 1700000000000,
+};
+storage.set('pixel_fisher_v1', JSON.stringify(charmLegacy));
+assert(run('load()') === true, 'charm legacy save failed to load');
+assert(state().charms === 1, 'legacy charm stock not capped');
+assert(state().coins === 1700, 'legacy charm refund wrong: ' + state().coins);
+assert(run('load()') === true, 'capped charm save failed to reload');
+assert(state().coins === 1700, 'legacy charm refund paid twice');
 
 console.log('PASS  caught=' + state().totalCaught + '  23 fish rates ok  weights ok  pond/upgrade ok  rod refine ok  market ok  shop/chum ok  dex/v8 migration ok  save ok');

@@ -133,7 +133,9 @@ const AMP_CHANCE = [0.55, 0.42, 0.32, 0.24, 0.17, 0.12, 0.085, 0.06, 0.04];
 const AMP_DROP = [0, 0.12, 0.16, 0.18, 0.2, 0.22, 0.24, 0.26, 0.28];
 const AMP_DESTROY = [0, 0, 0, 0.06, 0.08, 0.1, 0.12, 0.15, 0.2];
 const AMP_DROP_TO = [1, 1, 2, 3, 4, 5, 6, 7, 8];
-const CHARM_COST = 600;
+/* 保护符按当前品质定价，越接近永恒越贵；低品质不会跑鱼，用不到。 */
+const CHARM_COSTS = [0, 0, 0, 1200, 3000, 7200, 16000, 36000, 80000];
+const CHARM_LIMIT = 1;
 const LUCK_PER_FAIL = 8;
 const LUCK_BONUS = 0.005;
 
