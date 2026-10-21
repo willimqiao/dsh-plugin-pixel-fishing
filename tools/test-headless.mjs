@@ -211,7 +211,7 @@ run('var __dex = state.dexStats; state.dexStats = Object.fromEntries(FISH.map(f 
 // ---- weights: weather / bait / rod / chum ---------------------------------
 run('state.rod = 1; state.castBait = "worm"; state.chum = 0; curWeather = WEATHERS[0];');
 const koiSun = run('fishWeight(FISH_MAP.koi)');
-const goldenWorm = run('fishWeight(FISH_MAP.golden)');
+const starlightWorm = run('fishWeight(FISH_MAP.starlight)');
 const carpWorm = run('fishWeight(FISH_MAP.carp)');
 run('curWeather = WEATHERS[1];');
 const koiRain = run('fishWeight(FISH_MAP.koi)');
@@ -219,11 +219,11 @@ const eelRain = run('fishWeight(FISH_MAP.eel)');
 run('curWeather = WEATHERS[0];');
 const eelSun = run('fishWeight(FISH_MAP.eel)');
 run('state.castBait = "glow";');
-const goldenGlow = run('fishWeight(FISH_MAP.golden)');
+const starlightGlow = run('fishWeight(FISH_MAP.starlight)');
 const carpGlow = run('fishWeight(FISH_MAP.carp)');
 assert(koiSun > koiRain * 2.4, 'sunny does not boost koi');
 assert(eelRain > eelSun * 3.4, 'rain does not boost eel');
-assert(Math.abs(goldenGlow / goldenWorm - 1.4) < 1e-9, 'glow bait does not boost <=3% fish');
+assert(Math.abs(starlightGlow / starlightWorm - 1.4) < 1e-9, 'glow bait does not boost <=3% fish');
 assert(Math.abs(carpGlow - carpWorm) < 1e-9, 'glow bait boosted common fish');
 run('curWeather = WEATHERS[2]; state.castBait = "worm";');
 const lanternNight = run('fishWeight(FISH_MAP.lantern)');
@@ -261,6 +261,13 @@ const carpChum = run('fishWeight(FISH_MAP.carp)');
 assert(Math.abs(lanternChum / lanternSun - 3) < 1e-9, 'chum does not triple <=2% fish');
 assert(Math.abs(carpChum - carpWorm) < 1e-9, 'chum boosted common fish');
 run('state.chum = 0;');
+
+run('state.rod = 25; state.rodRefine = 5; curWeather = WEATHERS[2]; state.castBait = "glow"; state.chum = 10;');
+const starlightStacked = run('fishWeight(FISH_MAP.starlight) / FISH_MAP.starlight.rate');
+assert(Math.abs(starlightStacked - 10.96) < 1e-9, 'rare bonuses should add up instead of multiplying');
+const starlightShare = run('(() => { const ws = FISH.map(f => fishWeight(f)); const total = ws.reduce((a, b) => a + b, 0); return ws[FISH_INDEX.starlight] / total; })()');
+assert(starlightShare < 0.0025, 'top-tier fish still too common with every buff stacked');
+run('state.chum = 0; state.rod = 1; state.rodRefine = 0; curWeather = WEATHERS[0]; state.castBait = "worm";');
 
 // ---- M3: pond + amplification ---------------------------------------------
 // 本段只验升级扣费，关掉成就奖励，避免奖励金币混进断言
@@ -465,12 +472,12 @@ run('state.rod = 25; state.rodRefine = 5; ensureState();');
 assert(state().rodRefine === 5, 'freshly bought refine stage was rolled back on load');
 
 run('state.rod = 1; state.rodRefine = 0; state.castBait = "worm"; state.chum = 0; curWeather = WEATHERS[0];');
-const goldenBase = run('fishWeight(FISH_MAP.golden)');
+const coelacanthBase = run('fishWeight(FISH_MAP.coelacanth)');
 const carpBase = run('fishWeight(FISH_MAP.carp)');
 run('state.rodRefine = 3;');
-const goldenRefined = run('fishWeight(FISH_MAP.golden)');
+const coelacanthRefined = run('fishWeight(FISH_MAP.coelacanth)');
 const carpRefined = run('fishWeight(FISH_MAP.carp)');
-assert(Math.abs(goldenRefined / goldenBase - 1.36) < 1e-9, 'refine rare weight bonus wrong');
+assert(Math.abs(coelacanthRefined / coelacanthBase - 1.36) < 1e-9, 'refine rare weight bonus wrong');
 assert(Math.abs(carpRefined - carpBase) < 1e-9, 'refine boosted common fish');
 run('state.rodRefine = 0; state.rod = 1;');
 

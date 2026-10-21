@@ -99,35 +99,38 @@ function basketCost() {
 }
 const AUTO_COST = 1000;
 
-/** 天气、鱼饵、鱼竿改变单种鱼的权重，再按权重抽鱼。 */
+/* 天气、鱼饵、鱼竿改变单种鱼的权重，再按权重抽鱼。
+   多个加成按加法叠加：叠加不互相放大，稀有鱼不会被几层 buff 堆成常见鱼。 */
 function fishWeight(fish, opts) {
   const o = opts || {};
   const weather = o.weather || (curWeather ? curWeather.id : currentWeather().id);
   const bait = o.bait || state.castBait;
-  let w = fish.rate * (1 + (state.rod - 1) * (ROD_RANK_BOOST[fish.rank] || 0));
-  /* 淬炼只加成 rank≥3 的稀有鱼，普通鱼不受影响 */
-  if (fish.rank >= 3) w *= 1 + ROD_REFINE_RARE_BOOST * state.rodRefine;
+  let weatherMult = 1;
 
   if (weather === 'sunny') {
-    if (fish.id === 'koi') w *= 2.5;
-    else if (fish.id === 'grass') w *= 1.3;
-    else if (fish.id === 'golden') w *= 2;
-    else if (fish.id === 'whaleshark') w *= 2;
+    if (fish.id === 'koi') weatherMult = 2.5;
+    else if (fish.id === 'grass') weatherMult = 1.3;
+    else if (fish.id === 'golden') weatherMult = 2;
+    else if (fish.id === 'whaleshark') weatherMult = 2;
   } else if (weather === 'rain') {
-    if (fish.id === 'eel') w *= 3.5;
-    else if (fish.id === 'catfish') w *= 2.5;
-    else if (fish.id === 'frilled') w *= 2;
+    if (fish.id === 'eel') weatherMult = 3.5;
+    else if (fish.id === 'catfish') weatherMult = 2.5;
+    else if (fish.id === 'frilled') weatherMult = 2;
   } else if (weather === 'night') {
-    if (fish.id === 'lantern') w *= 4;
-    else if (fish.id === 'starlight') w *= 2.2;
-    else if (fish.id === 'ghost') w *= 1.3;
-    else if (fish.id === 'coelacanth') w *= 2;
+    if (fish.id === 'lantern') weatherMult = 4;
+    else if (fish.id === 'starlight') weatherMult = 2.2;
+    else if (fish.id === 'ghost') weatherMult = 1.3;
+    else if (fish.id === 'coelacanth') weatherMult = 2;
   }
 
-  if (bait === 'glow' && fish.rate <= BAITS.glow.rateMax) w *= BAITS.glow.rare;
+  const gear = 1 + (state.rod - 1) * (ROD_RANK_BOOST[fish.rank] || 0);
+  /* 淬炼只加成 rank≥3 的稀有鱼，普通鱼不受影响 */
+  const refine = fish.rank >= 3 ? 1 + ROD_REFINE_RARE_BOOST * state.rodRefine : 1;
+  const baitMult = bait === 'glow' && fish.rate <= BAITS.glow.rateMax ? BAITS.glow.rare : 1;
   const chum = o.chum !== undefined ? Boolean(o.chum) : state.chum > 0;
-  if (chum && fish.rate <= CHUM.rateMax) w *= CHUM.rareMult;
-  return w;
+  const chumMult = chum && fish.rate <= CHUM.rateMax ? CHUM.rareMult : 1;
+
+  return fish.rate * (1 + (gear - 1) + (refine - 1) + (weatherMult - 1) + (baitMult - 1) + (chumMult - 1));
 }
 
 function rollFish(opts) {
