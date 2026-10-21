@@ -18,6 +18,8 @@ const state = {
   ach: {},
   pond: [],
   pondSlots: 3,
+  training: null,
+  hall: [],
   food: 0,
   charms: 0,
   chum: 0,
@@ -272,8 +274,10 @@ function ensureDexStats() {
     state.dex[id] = state.dexStats[id].n;
   }
 
-  // 旧档补录：鱼塘和鱼篓里现存的鱼按当前品质记一次；之前卖掉的历史最高无法追溯
+  // 旧档补录：鱼塘、培育位、图鉴馆和鱼篓里现存的鱼按当前品质记一次
   for (const slot of state.pond || []) if (slot) recordBestTier(slot.id, slot.tier);
+  if (state.training) recordBestTier(state.training.id, state.training.tier);
+  for (const slot of Array.isArray(state.hall) ? state.hall : []) if (slot) recordBestTier(slot.id, slot.tier);
   for (const item of state.basket || []) if (item) recordBestTier(item.id, item.tier);
 
   if (!state.stats || typeof state.stats !== 'object') state.stats = {};
@@ -427,6 +431,32 @@ function ensurePond() {
       born: Number.isFinite(born) && born > 0 && born <= Date.now() + 60000 ? born : Date.now(),
     };
   });
+  ensureTrainingHall();
+}
+
+function normalizeOwnedSlot(slot) {
+  if (!slot || !FISH_MAP[slot.id]) return null;
+  const born = Number(slot.born);
+  return {
+    id: slot.id,
+    s: Math.max(0, Math.min(9999, Number(slot.s) || 0)),
+    tier: Math.min(TIERS.length, Math.max(1, Number(slot.tier) || 1)),
+    luck: Math.max(0, Math.min(100, Number(slot.luck) || 0)),
+    born: Number.isFinite(born) && born > 0 && born <= Date.now() + 60000 ? born : Date.now(),
+  };
+}
+
+function ensureTrainingHall() {
+  state.training = normalizeOwnedSlot(state.training);
+  const rawHall = Array.isArray(state.hall) ? state.hall : [];
+  const seen = new Set();
+  state.hall = [];
+  for (const raw of rawHall) {
+    const slot = normalizeOwnedSlot(raw);
+    if (!slot || slot.tier < TIERS.length || seen.has(slot.id)) continue;
+    seen.add(slot.id);
+    state.hall.push(slot);
+  }
 }
 
 function tierOf(slot) {
@@ -452,6 +482,19 @@ function pondRate() {
   let total = 0;
   for (const slot of state.pond) total += slotRate(slot);
   return total;
+}
+
+function slotAt(kind, index) {
+  return kind === 'training' ? state.training : state.pond[index];
+}
+
+function setSlotAt(kind, index, value) {
+  if (kind === 'training') state.training = value;
+  else state.pond[index] = value;
+}
+
+function hallHas(id) {
+  return state.hall.some(slot => slot.id === id);
 }
 
 function putInPond(slotIndex, basketIndex) {
@@ -489,6 +532,86 @@ function removeFromPond(slotIndex) {
   save();
 }
 
+function putInTraining(basketIndex) {
+  const item = state.basket[basketIndex];
+  if (!item || state.training) return;
+  state.training = {
+    id: item.id,
+    s: item.s || 0,
+    tier: Math.min(TIERS.length, Math.max(1, Number(item.tier) || 1)),
+    luck: 0,
+    born: Date.now(),
+  };
+  state.basket.splice(basketIndex, 1);
+  recordBestTier(item.id, state.training.tier);
+  toast(`${FISH_MAP[item.id].name} 进入培育位，只升级、不产币`, '#b06cff');
+  beep(620, 0.08, 'square', 0.04);
+  beep(830, 0.12, 'square', 0.04, 0.08);
+  checkAchievements();
+  renderBasket(true);
+  renderPond();
+  closeModal();
+  updateUI();
+  save();
+}
+
+function removeTraining() {
+  const slot = state.training;
+  if (!slot) return;
+  const refund = Math.max(1, Math.round(FISH_MAP[slot.id].value * 0.5 * tierOf(slot).mult));
+  state.coins += refund;
+  state.training = null;
+  toast(`取出并折现 +${refund} 🪙`, '#ffd24a');
+  renderPond();
+  closeModal();
+  updateUI();
+  save();
+}
+
+function depositToHall(kind, index) {
+  const slot = slotAt(kind, index);
+  if (!slot) return false;
+  if (slot.tier < TIERS.length) {
+    toast('只有永恒品质才能收入图鉴馆', '#ff8a5a');
+    return false;
+  }
+  if (hallHas(slot.id)) {
+    toast('图鉴馆已有这条鱼', '#ff8a5a');
+    return false;
+  }
+  recordBestTier(slot.id, slot.tier);
+  setSlotAt(kind, index, null);
+  state.hall.push(slot);
+  toast(`${FISH_MAP[slot.id].name} 收入图鉴馆 · 馆藏 ${state.hall.length} 条`, '#8ce8d0');
+  beep(740, 0.08, 'triangle', 0.04);
+  beep(988, 0.12, 'triangle', 0.04, 0.07);
+  renderPond();
+  closeModal();
+  updateUI();
+  save();
+  return true;
+}
+
+function retrieveFromHall(id) {
+  const idx = state.hall.findIndex(slot => slot.id === id);
+  if (idx < 0) return false;
+  const empty = state.pond.findIndex(slot => !slot);
+  if (empty < 0) {
+    toast('鱼塘已满，先收一条鱼进图鉴馆腾出位置', '#ff8a5a');
+    return false;
+  }
+  const slot = state.hall.splice(idx, 1)[0];
+  state.pond[empty] = slot;
+  toast(`${FISH_MAP[id].name} 回到鱼塘 · 产速 +${slotRate(slot).toFixed(1)}/分`, '#5fcf7a');
+  beep(700, 0.08, 'square', 0.04);
+  beep(920, 0.12, 'square', 0.04, 0.07);
+  renderPond();
+  closeModal();
+  updateUI();
+  save();
+  return true;
+}
+
 let rolling = false;
 
 function ampChance(slot) {
@@ -497,8 +620,8 @@ function ampChance(slot) {
   return Math.min(1, base + (slot.luck || 0) * LUCK_BONUS);
 }
 
-function showRoll(index, rollMs) {
-  const slot = state.pond[index];
+function showRoll(kind, index, rollMs) {
+  const slot = slotAt(kind, index);
   const fish = FISH_MAP[slot.id];
   const cur = TIERS[slot.tier - 1];
   const next = TIERS[Math.min(TIERS.length - 1, slot.tier)];
@@ -528,8 +651,8 @@ function showRoll(index, rollMs) {
 }
 
 /** 喂鱼食升级：赌概率进化，失败可能掉阶/跑鱼。 */
-function amplify(index) {
-  const slot = state.pond[index];
+function amplify(index, kind = 'pond') {
+  const slot = slotAt(kind, index);
   if (!slot || rolling) return;
   if (slot.tier >= TIERS.length) {
     toast('已经是最高品质', '#ff8a5a');
@@ -565,7 +688,7 @@ function amplify(index) {
   state.coins -= coinCost;
   state.stats.upTries += 1;
   rolling = true;
-  showRoll(index, rollMs);
+  showRoll(kind, index, rollMs);
 
   const ticks = Math.round(rollMs / 120);
   for (let i = 0; i < ticks; i += 1) {
@@ -606,7 +729,7 @@ function amplify(index) {
           beep(988, 0.14, 'triangle', 0.045, 0.08);
           beep(1319, 0.2, 'sine', 0.04, 0.16);
         } else {
-          state.pond[index] = null;
+          setSlotAt(kind, index, null);
           result = 'destroy';
           state.food += Math.floor(foodCost / 2);
           state.coins += Math.floor(coinCost / 2);
@@ -630,12 +753,12 @@ function amplify(index) {
 
     rolling = false;
     checkAchievements();
-    finishRoll(index, result, name, foodCost, coinCost);
+    finishRoll(kind, index, result, name, foodCost, coinCost);
     save();
   }, rollMs);
 }
 
-function finishRoll(index, result, name, foodCost, coinCost) {
+function finishRoll(kind, index, result, name, foodCost, coinCost) {
   if (result === 'destroy') {
     showModal('鱼跑了', `
       <p class="destroy-text">升级失败，${name} 挣脱跑掉了…</p>
@@ -658,13 +781,14 @@ function finishRoll(index, result, name, foodCost, coinCost) {
     updateUI();
     return;
   }
-  openPond(index, result);
+  if (kind === 'training') openTraining(result);
+  else openPond(index, result);
   renderPond();
   updateUI();
 }
 
-function buyCharm(index) {
-  const slot = state.pond[index];
+function buyCharm(index, kind = 'pond') {
+  const slot = slotAt(kind, index);
   if (!slot) return;
   const cost = charmCost(slot.tier);
   if (cost <= 0) {
@@ -683,7 +807,8 @@ function buyCharm(index) {
   state.charms += 1;
   toast(`买了一个保护符（${cost.toLocaleString()}🪙，现有 ${state.charms}/${CHARM_LIMIT}）`, '#8ce8d0');
   beep(760, 0.08, 'square', 0.04);
-  openPond(index);
+  if (kind === 'training') openTraining();
+  else openPond(index);
   updateUI();
   save();
 }
@@ -1286,6 +1411,12 @@ function ensureState() {
   for (const slot of state.pond) {
     if (slot) state.stats.bestTier = Math.max(state.stats.bestTier, slot.tier);
   }
+  if (state.training) {
+    state.stats.bestTier = Math.max(state.stats.bestTier, state.training.tier);
+  }
+  for (const slot of state.hall) {
+    state.stats.bestTier = Math.max(state.stats.bestTier, slot.tier);
+  }
 }
 
 function load() {
@@ -1299,6 +1430,9 @@ function load() {
     const extraCharms = Math.max(0, Math.floor(Number(s.charms) || 0) - CHARM_LIMIT);
     state.qualityComp = 0;
     state.qualityPaid = wasMigrated;
+    // 培育位 / 图鉴馆是新字段；旧档没有时保持空，不碰原有鱼塘与图鉴
+    state.training = null;
+    state.hall = [];
     Object.assign(state, s);
     ensureState();
     if (extraCharms > 0) {

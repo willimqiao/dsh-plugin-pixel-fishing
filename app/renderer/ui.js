@@ -560,7 +560,7 @@ function renderDex(force) {
   const grid = $('dexGrid');
   const summary = $('dexSummary');
   if (summary) {
-    summary.innerHTML = `已收集 <b>${dexCount()}/${FISH.length}</b> 种 · 金币加成 <b style="color:#5fcf7a">+${Math.round(dexBonus() * 100)}%</b> · 永恒勋章 <b style="color:#e8f4ff">${eternalCount()}/${FISH.length}</b><br><span style="font-size:11px;color:#6a7699">每种鱼的史上最高品质会永久记录，鱼塘只有 6 格也能慢慢集齐</span>`;
+    summary.innerHTML = `已收集 <b>${dexCount()}/${FISH.length}</b> 种 · 金币加成 <b style="color:#5fcf7a">+${Math.round(dexBonus() * 100)}%</b> · 馆藏 <b style="color:#8ce8d0">${state.hall.length}/${FISH.length}</b> · 永恒勋章 <b style="color:#e8f4ff">${eternalCount()}/${FISH.length}</b><br><span style="font-size:11px;color:#6a7699">每种鱼的史上最高品质会永久记录，鱼塘只有 6 格也能慢慢集齐</span>`;
   }
 
   const needRender = force || !dexRendered;
@@ -611,6 +611,7 @@ function renderDex(force) {
   }
 
   renderAch();
+  renderHallCounts();
 }
 
 let achFilter = '全部';
@@ -697,15 +698,67 @@ function renderPond() {
   grid.querySelectorAll('.pond-slot').forEach(el => {
     el.onclick = () => openPond(Number(el.dataset.slot));
   });
+
+  renderTraining();
+  renderHallCounts();
 }
 
-function openPond(slotIndex, result) {
-  const slot = state.pond[slotIndex];
+function renderHallCounts() {
+  document.querySelectorAll('.hall-count').forEach(el => {
+    el.textContent = state.hall.length;
+  });
+  document.querySelectorAll('.eternal-count').forEach(el => {
+    el.textContent = eternalCount();
+  });
+}
+
+function renderTraining() {
+  const wrap = $('trainingWrap');
+  if (!wrap) return;
+  const slot = state.training;
   if (!slot) {
-    openPondPicker(slotIndex);
+    wrap.innerHTML = `<div class="training-slot empty" id="trainingSlot">
+      <span class="training-badge">培育位 · 不产币</span>
+      <div class="training-empty"><b>＋ 放入一条鱼</b><span>只升级、不产币，6 个生产位照常运行</span></div>
+    </div>`;
+    const el = $('trainingSlot');
+    if (el) el.onclick = () => openTrainingPicker();
     return;
   }
 
+  const f = FISH_MAP[slot.id];
+  const tier = tierOf(slot);
+  const maxed = slot.tier >= TIERS.length;
+  wrap.innerHTML = `<div class="training-slot filled" id="trainingSlot" style="--tier:${tier.color};border-color:${tier.color}">
+    <span class="training-badge">培育位 · 不产币</span>
+    <img src="${fishIcon(f, 2)}" alt="">
+    <div class="training-info">
+      <span class="training-name" style="color:${fishColor(f)}">${f.name}</span>
+      <span class="training-meta" style="color:${tier.color}">${tier.name} · ${maxed ? 'MAX' : '幸运 ' + (slot.luck || 0)}</span>
+    </div>
+    <span class="training-cta${maxed ? ' max' : ''}">${maxed ? '满级 · 收入图鉴馆' : '升级 ›'}</span>
+  </div>`;
+  const el = $('trainingSlot');
+  if (el) el.onclick = () => openTraining();
+}
+
+function openPond(slotIndex, result) {
+  openFishSlot('pond', slotIndex, result);
+}
+
+function openTraining(result) {
+  openFishSlot('training', 0, result);
+}
+
+function openFishSlot(kind, index, result) {
+  const slot = slotAt(kind, index);
+  if (!slot) {
+    if (kind === 'training') openTrainingPicker();
+    else openPondPicker(index);
+    return;
+  }
+
+  const isPond = kind === 'pond';
   const fish = FISH_MAP[slot.id];
   const tier = tierOf(slot);
   const max = slot.tier >= TIERS.length;
@@ -741,8 +794,10 @@ function openPond(slotIndex, result) {
   }
 
   const isWin = result === 'success' && slot.tier > 1;
-  const prevRate = isWin ? slotRate(Object.assign({}, slot, { tier: slot.tier - 1 })) : slotRate(slot);
-  const rateDelta = slotRate(slot) - prevRate;
+  const prevRate = isPond
+    ? (isWin ? slotRate(Object.assign({}, slot, { tier: slot.tier - 1 })) : slotRate(slot))
+    : 0;
+  const rateDelta = isPond ? slotRate(slot) - prevRate : 0;
   const prevTier = isWin ? TIERS[slot.tier - 2] : null;
   const tierUp = isWin
     ? `<div class="tier-up-line">
@@ -751,16 +806,24 @@ function openPond(slotIndex, result) {
         <span class="t-new" style="color:${tier.color};text-shadow:0 0 16px ${tier.color}">${tier.name}</span>
       </div>`
     : '';
+  const inHall = hallHas(slot.id);
+  const depositBtn = max
+    ? (inHall
+      ? '<button class="btn" disabled>图鉴馆已有这条鱼</button>'
+      : '<button class="btn primary" id="hallDeposit">收入图鉴馆</button>')
+    : '';
 
   showModal(`${fish.name} · ${tier.name}`, `
     ${tierUp}
     <div class="pond-fish${isWin ? ' win' : ''}"><img src="${fishIcon(fish, 4)}" alt=""></div>
-    <p class="pond-rate-line">产速 <b id="rateNow" style="color:#ffd24a">${prevRate.toFixed(1)}</b> /分钟${rateDelta > 0.05 ? `<span class="rate-up">▲ +${rateDelta.toFixed(1)}</span>` : ''}</p>
+    ${isPond
+      ? `<p class="pond-rate-line">产速 <b id="rateNow" style="color:#ffd24a">${prevRate.toFixed(1)}</b> /分钟${rateDelta > 0.05 ? `<span class="rate-up">▲ +${rateDelta.toFixed(1)}</span>` : ''}</p>`
+      : '<p class="pond-rate-line">培育位 · <b style="color:#b06cff">不产币</b></p>'}
     <p>尺寸 ${slot.s || 0}cm · 基础出率 ${fishRateLabel(fish)}</p>
     ${max ? `
     <div class="amp-box maxed">
       <div class="amp-chance">已达到最高品质</div>
-      <div class="amp-sub">这条鱼会一直按最高品质产金币</div>
+      <div class="amp-sub">${isPond ? '这条鱼会一直按最高品质产金币' : '培育完成，可以收入图鉴馆；培育位会空出来'}</div>
     </div>` : `
     <div class="amp-box">
       <div class="amp-chance">升级成功率 <b>${Math.round(chance * 100)}%</b></div>
@@ -774,14 +837,19 @@ function openPond(slotIndex, result) {
       ${ampLabel}
     </button>
     ${charmBtn}`}
+    ${depositBtn}
     <button class="btn" id="pondRemove" style="font-size:11px;opacity:.7">取出并折现</button>
   `);
 
   if (!max) {
-    $('ampBtn').onclick = () => amplify(slotIndex);
-    if (destroyRisk > 0) $('charmBtn').onclick = () => buyCharm(slotIndex);
+    $('ampBtn').onclick = () => amplify(index, kind);
+    if (destroyRisk > 0) $('charmBtn').onclick = () => buyCharm(index, kind);
   }
-  $('pondRemove').onclick = () => removeFromPond(slotIndex);
+  if (max && !inHall) $('hallDeposit').onclick = () => depositToHall(kind, index);
+  $('pondRemove').onclick = () => {
+    if (kind === 'training') removeTraining();
+    else removeFromPond(index);
+  };
 
   if (result) {
     const box = document.querySelector('.modal-box');
@@ -816,7 +884,7 @@ function openPond(slotIndex, result) {
         fxFlash(hexA(color, Math.min(0.62, 0.38 + power * 0.022)), 480 + power * 20);
         shake = Math.max(shake, 2 + power * 0.55);
         if (power >= 6) setTimeout(() => fxFlash(hexA(color, 0.26), 620), 140);
-        animateRate(prevRate, slotRate(slot));
+        if (isPond) animateRate(prevRate, slotRate(slot));
       } else if (charm) {
         spawnShield(layer);
         spawnSparks(layer, '#8ce8d0', 18);
@@ -837,10 +905,20 @@ function openPond(slotIndex, result) {
 }
 
 function openPondPicker(slotIndex) {
+  openPicker('pond', slotIndex);
+}
+
+function openTrainingPicker() {
+  openPicker('training');
+}
+
+function openPicker(kind, slotIndex) {
   if (!state.basket.length) {
     toast('鱼篓是空的，先去钓一条', '#ff8a5a');
     return;
   }
+  if (kind === 'training' && state.training) return;
+  if (kind === 'pond' && (slotIndex == null || state.pond[slotIndex])) return;
 
   const items = state.basket
     .map(it => ({ it }))
@@ -860,14 +938,100 @@ function openPondPicker(slotIndex) {
     </button>`;
   }).join('')}</div>`;
 
-  showModal('选择入塘的鱼', html);
+  showModal(kind === 'training' ? '选择放入培育位的鱼' : '选择入塘的鱼', html);
   document.querySelectorAll('.pick').forEach(btn => {
     const entry = items[Number(btn.dataset.k)];
     btn.onclick = () => {
       const idx = state.basket.indexOf(entry.it);
-      if (idx >= 0) putInPond(slotIndex, idx);
+      if (idx < 0) return;
+      if (kind === 'training') putInTraining(idx);
+      else putInPond(slotIndex, idx);
     };
   });
+}
+
+/* ---------------- 图鉴馆 ---------------- */
+function openHall() {
+  const stored = new Map(state.hall.map(x => [x.id, x]));
+  const pondById = new Map(state.pond.filter(Boolean).map(x => [x.id, x]));
+  const training = state.training;
+
+  const cells = FISH.map(f => {
+    const st = stored.get(f.id);
+    const pd = pondById.get(f.id);
+    const tr = training && training.id === f.id ? training : null;
+    const bt = bestTierOf(f.id);
+    const maxed = bt >= TIERS.length;
+
+    let status = '未满级';
+    let sub = bt ? `最高 ${TIERS[bt - 1].name}` : '未收集';
+    let cls = 'unmaxed';
+    let badge = 'faded';
+    if (st) {
+      status = '馆藏';
+      sub = `${st.s}cm`;
+      cls = 'stored';
+      badge = 'stored';
+    } else if (pd) {
+      status = '在塘';
+      sub = `${pd.s}cm`;
+      cls = 'pond';
+      badge = 'pond';
+    } else if (tr) {
+      status = '培育中';
+      sub = tr.tier >= TIERS.length ? '已满级' : TIERS[tr.tier - 1].name;
+      cls = 'training';
+      badge = 'training';
+    } else if (maxed) {
+      status = '已满级';
+      sub = '未收藏';
+      cls = 'faded';
+      badge = 'faded';
+    }
+
+    const nameColor = (st || pd || tr || maxed) ? fishColor(f) : '#4a5470';
+    return `<div class="hall-cell ${cls}"${st ? ` data-id="${f.id}"` : ''}>
+      <img src="${fishIcon(f, 3)}" alt="">
+      <div class="hall-name" style="color:${nameColor}">${f.name}</div>
+      <div class="hall-sub">${sub}</div>
+      <span class="hall-badge ${badge}">${status}</span>
+    </div>`;
+  }).join('');
+
+  const html = `
+    <div class="hall-top">
+      <div class="hall-stat"><b>${state.hall.length}</b><span>馆藏</span></div>
+      <div class="hall-stat"><b>${eternalCount()}/${FISH.length}</b><span>满级图鉴</span></div>
+      <div class="hall-stat"><b>${state.pond.filter(Boolean).length}</b><span>在塘工作</span></div>
+    </div>
+    <div class="hall-note">馆藏鱼不产币、不占鱼塘；每种鱼只收一条。点「馆藏」的鱼可以放回鱼塘空位。</div>
+    <div class="hall-grid">${cells}</div>
+  `;
+  showModal('图鉴馆', html, { hall: true });
+  document.querySelectorAll('.hall-cell.stored').forEach(el => {
+    el.onclick = () => openHallFish(el.dataset.id);
+  });
+}
+
+function openHallFish(id) {
+  const entry = state.hall.find(x => x.id === id);
+  if (!entry) return;
+  const fish = FISH_MAP[id];
+  const empty = state.pond.findIndex(x => !x);
+  showModal(`${fish.name} · ${TIERS[TIERS.length - 1].name}`, `
+    <div class="pond-fish"><img src="${fishIcon(fish, 4)}" alt=""></div>
+    <p class="pond-rate-line">放回鱼塘后产速 <b style="color:#ffd24a">${slotRate(entry).toFixed(1)}</b> /分钟</p>
+    <p>尺寸 ${entry.s}cm · 图鉴馆藏品</p>
+    <div class="amp-box maxed">
+      <div class="amp-chance">馆藏中</div>
+      <div class="amp-sub">馆藏期间不产币；放回鱼塘后恢复产币</div>
+    </div>
+    <button class="btn primary" id="hallRetrieve" ${empty < 0 ? 'disabled' : ''}>${empty < 0 ? '鱼塘格子已满' : '放回鱼塘空位'}</button>
+    <button class="btn" id="hallBack">返回图鉴馆</button>
+    ${empty < 0 ? '<p class="hall-hint">先在鱼塘点一条满级鱼，收入图鉴馆腾出格子，再回来取回。</p>' : ''}
+  `, { hall: true });
+  $('hallRetrieve').onclick = () => retrieveFromHall(id);
+  $('hallBack').onclick = openHall;
 }
 
 /* toast */
@@ -882,11 +1046,13 @@ function toast(msg, color) {
 }
 
 /* 弹窗 */
-function showModal(title, html) {
+function showModal(title, html, opts = {}) {
   const box = document.querySelector('.modal-box');
   if (box) {
-    box.classList.remove('up-win', 'up-charm', 'up-fail', 'roll-success', 'roll-charm', 'roll-fail');
+    box.classList.remove('up-win', 'up-charm', 'up-fail', 'roll-success', 'roll-charm', 'roll-fail', 'hall');
     box.querySelectorAll('.fx-confetti, .up-stamp, .fx-layer').forEach(n => { if (n.remove) n.remove(); });
+    if (opts.hall) box.classList.add('hall');
+    if (box.scrollTop) box.scrollTop = 0;
   }
   $('modalTitle').textContent = title;
   $('modalBody').innerHTML = html;
@@ -989,6 +1155,12 @@ if (chumBuyBtn) chumBuyBtn.addEventListener('click', buyChum);
 // 鱼塘扩建
 const pondExpandBtn = $('pondExpand');
 if (pondExpandBtn) pondExpandBtn.addEventListener('click', expandPond);
+
+// 图鉴馆
+const pondHallBtn = $('pondHall');
+if (pondHallBtn) pondHallBtn.addEventListener('click', openHall);
+const dexHallBtn = $('dexHall');
+if (dexHallBtn) dexHallBtn.addEventListener('click', openHall);
 
 // 重置
 $('resetBtn').addEventListener('click', () => {

@@ -371,6 +371,53 @@
   .pond-meta { font-size: 10px; color: #8fa0c0; }
   .pond-rate { font-size: 10px; color: #ffd24a; }
   .pond-tip { margin-top: 8px; font-size: 11px; color: #55618a; text-align: center; }
+
+  /* ===== 培育位 / 图鉴馆 ===== */
+  .hall-strip {
+    width: 100%; display: flex; align-items: center; gap: 8px;
+    background: linear-gradient(90deg, #202a44, #1a2030);
+    border: 1px solid #3a4a70; border-left: 4px solid #e8f4ff;
+    padding: 8px 10px; margin-bottom: 10px;
+    cursor: pointer; font-family: inherit; color: inherit; text-align: left;
+    transition: background .15s, border-color .15s;
+  }
+  .hall-strip:hover { background: #222d4a; border-color: #6fd0ff; border-left-color: #fff; }
+  .hall-ico { font-size: 17px; line-height: 1; flex-shrink: 0; }
+  .hall-txt { flex: 1; font-size: 11px; color: #9fb0d0; line-height: 1.5; }
+  .hall-txt b { color: #e8f4ff; font-size: 12px; }
+  .hall-txt i { font-style: normal; color: #ffd24a; font-weight: 700; }
+  .hall-txt .eternal-count { color: #e8f4ff; }
+  .hall-go { font-size: 11px; color: #6fd0ff; font-weight: 700; white-space: nowrap; }
+
+  .training-slot {
+    position: relative; margin-top: 6px; min-height: 86px;
+    padding: 16px 12px 10px; display: flex; align-items: center; gap: 10px;
+    background: #1a2030; border: 2px dashed #3a4a70; cursor: pointer;
+    transition: box-shadow .2s, filter .12s, border-color .12s, background .15s;
+  }
+  .training-slot.empty { justify-content: center; color: #6a7699; }
+  .training-slot.empty:hover { border-color: #b06cff; color: #c8b0ff; background: #1d1a2c; }
+  .training-slot.filled {
+    border-style: solid; border-color: var(--tier, #3a4a70);
+    background: linear-gradient(180deg, rgba(176,108,255,.07), rgba(0,0,0,.14)), #1a2030;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,.4), 0 0 12px -5px var(--tier);
+  }
+  .training-slot.filled:hover { filter: brightness(1.12); }
+  .training-slot img { width: 55px; height: 30px; image-rendering: pixelated; flex-shrink: 0; filter: drop-shadow(0 1px 0 rgba(0,0,0,.35)); }
+  .training-badge {
+    position: absolute; top: -2px; left: -2px;
+    background: #2e2248; color: #c8b0ff;
+    border-right: 1px solid #4a3a6a; border-bottom: 1px solid #4a3a6a;
+    font-size: 9px; font-weight: 700; line-height: 1; padding: 3px 6px; letter-spacing: .4px;
+  }
+  .training-empty { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .training-empty b { font-size: 12px; color: #c8b0ff; }
+  .training-empty span { font-size: 10px; color: #6a7699; }
+  .training-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .training-name { font-size: 12px; font-weight: 700; }
+  .training-meta { font-size: 10px; color: #8fa0c0; }
+  .training-cta { font-size: 11px; font-weight: 700; color: #b06cff; white-space: nowrap; }
+  .training-cta.max { color: #e8f4ff; text-shadow: 0 0 8px rgba(232,244,255,.8); }
   .trait-box { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin: 8px 0; }
   .trait { font-size: 10px; color: #b06cff; border: 1px solid #4a3a6a; padding: 1px 6px; border-radius: 999px; }
   .trait.dim { color: #55618a; border-color: #2a3450; }
@@ -569,6 +616,30 @@
 
   .modal-box { position: relative; overflow: hidden; }
   .modal-box > h2, .modal-box > #modalBody, .modal-box > .btn { position: relative; z-index: 3; }
+  .modal-box.hall { max-width: 400px; max-height: 86vh; overflow-x: hidden; overflow-y: auto; }
+  .hall-top { display: flex; gap: 6px; margin-bottom: 8px; }
+  .hall-stat { flex: 1; background: #161c2c; border: 1px solid #2a3450; padding: 6px 4px; }
+  .hall-stat b { display: block; font-size: 16px; color: #e8f4ff; line-height: 1.2; }
+  .hall-stat span { font-size: 9px; color: #7a88a8; }
+  .hall-note { font-size: 10px; color: #8fa0c0; line-height: 1.5; margin-bottom: 8px; }
+  .hall-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; max-height: 50vh; overflow-y: auto; padding-right: 2px; }
+  .hall-cell { background: #1a2030; border: 2px solid #2a3450; padding: 6px 3px 5px; text-align: center; min-height: 92px; }
+  .hall-cell img { width: 56px; height: 31px; image-rendering: pixelated; margin-bottom: 2px; filter: drop-shadow(0 2px 0 rgba(0,0,0,.32)); }
+  .hall-cell.unmaxed img { filter: brightness(0) opacity(.22); }
+  .hall-cell.faded img { opacity: .55; filter: grayscale(.45); }
+  .hall-cell.stored { border-color: #3e7a6a; cursor: pointer; background: linear-gradient(180deg, #1d2e2a, #1a2030 64%); }
+  .hall-cell.stored:hover { background: #203a34; }
+  .hall-cell.pond { border-color: #5a4a2a; }
+  .hall-cell.training { border-color: #4a3a6a; }
+  .hall-name { font-size: 10px; font-weight: 700; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hall-cell.unmaxed .hall-name { color: #4a5470; }
+  .hall-sub { font-size: 9px; color: #6a7699; margin-top: 1px; min-height: 11px; }
+  .hall-badge { display: inline-block; margin-top: 2px; font-size: 8px; font-weight: 700; padding: 1px 4px; border: 1px solid #2a3450; color: #8fa0c0; }
+  .hall-badge.stored { color: #8ce8d0; border-color: #2e6a5a; background: #152a26; }
+  .hall-badge.pond { color: #ffd24a; border-color: #6a5a2a; background: #2a2416; }
+  .hall-badge.training { color: #b06cff; border-color: #4a3a6a; background: #241a3a; }
+  .hall-badge.faded { color: #6a7699; }
+  .hall-hint { font-size: 10px; color: #6a7699; line-height: 1.5; margin-top: 8px; }
   #fxFlash { position: fixed; inset: 0; pointer-events: none; opacity: 0; z-index: 70; }
   #fxFlash.on { animation: fxFlash var(--flash-ms, .46s) ease-out; }
   @keyframes fxFlash { 0% { opacity: .95; } 65% { opacity: .35; } 100% { opacity: 0; } }
@@ -735,8 +806,14 @@
         <span>鱼塘产速 <b id="pondRate">0.0</b> /分钟 · 鱼食 <b id="pondFood">0</b></span>
         <button id="pondExpand" class="btn buy">扩建</button>
       </div>
+      <button class="hall-strip" id="pondHall" type="button">
+        <span class="hall-ico">🏛</span>
+        <span class="hall-txt"><b>图鉴馆</b> · 馆藏 <i class="hall-count">0</i> 条 · 满级图鉴 <i class="eternal-count">0</i>/23</span>
+        <span class="hall-go">查看 ›</span>
+      </button>
       <div id="pondGrid" class="pond-grid"></div>
-      <div class="pond-tip">放入鱼篓里的鱼，它会持续产金币；点格子可以用鱼食升级品质</div>
+      <div id="trainingWrap"></div>
+      <div class="pond-tip">前 6 格放鱼产金币，点格子可以升级；培育位只练鱼、不产币，练满收入图鉴馆。</div>
     </section>
 
     <section id="tab-market" class="panel">
@@ -828,6 +905,11 @@
     </section>
 
     <section id="tab-dex" class="panel">
+      <button class="hall-strip" id="dexHall" type="button">
+        <span class="hall-ico">🏛</span>
+        <span class="hall-txt"><b>图鉴馆</b> · 馆藏 <i class="hall-count">0</i> 条 · 满级图鉴 <i class="eternal-count">0</i>/23</span>
+        <span class="hall-go">查看 ›</span>
+      </button>
       <div id="dexSummary" class="dex-summary"></div>
       <div id="dexGrid" class="dex-grid"></div>
       <div id="achWrap" class="ach-wrap"></div>

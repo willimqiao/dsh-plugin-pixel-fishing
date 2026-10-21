@@ -341,6 +341,69 @@ run('state.food = 0; state.pond[0] = {id:"carp", tier:3, feed:10, born:Date.now(
 assert(state().food === 10 && state().pond[0].luck === 5, 'feed migration wrong');
 run('checkAchievements = __checkAch;');
 
+// ---- M4: training cell + collection hall -----------------------------------
+run('var __checkAch2 = checkAchievements; checkAchievements = function(){};');
+run('state.pond = [{id:"carp", s:30, tier:5, luck:0, born:Date.now()}, null, null]; state.pondSlots = 3; ensurePond();');
+run('state.training = null; state.hall = []; state.basket = [{id:"koi", s:35, tier:1}]; state.food = 1000; state.coins = 1000; state.charms = 0;');
+const rateWithPondOnly = run('pondRate()');
+run('putInTraining(0)');
+assert(state().training && state().training.id === 'koi' && state().training.tier === 1, 'putInTraining failed');
+assert(state().basket.length === 0, 'training fish not removed from basket');
+assert(run('pondRate()') === rateWithPondOnly, 'training cell should not produce');
+assert(run('bestTierOf("koi")') === 1, 'training did not record best tier');
+
+setRandom([0]);
+lastStamp = null;
+run('amplify(0, "training")');
+assert(state().training.tier === 2, 'training upgrade failed');
+assert(state().food === 976 && state().coins === 940, 'training upgrade cost wrong');
+assert(state().pond[0].tier === 5, 'training upgrade touched production pond');
+assert(lastStamp === '升级成功', 'training success stamp missing');
+
+run('state.training = {id:"koi", s:35, tier:4, luck:0, born:Date.now()}; state.food = 1000; state.coins = 1000; state.charms = 0;');
+setRandom([0.99, 0.0]);         // fail + destroy
+run('amplify(0, "training")');
+assert(state().training === null, 'training fish not destroyed');
+assert(state().pond[0] && state().pond[0].tier === 5, 'training destroy took a production slot');
+assert(state().food === 820 && state().coins === 600, 'training destroy cost/refund wrong');
+
+run('state.training = {id:"koi", s:35, tier:5, luck:0, born:Date.now()}; state.coins = 10000; state.charms = 0;');
+run('buyCharm(0, "training")');
+assert(state().charms === 1 && state().coins === 7000, 'training charm purchase wrong');
+assert(state().training.tier === 5, 'charm purchase changed training tier');
+
+// hall: eternal only, one per species, never produces
+run('state.training.tier = 9;');
+assert(run('depositToHall("training", 0)') === false && state().training.tier === 9, 'hall accepted non-eternal fish');
+run('state.training.tier = 10;');
+assert(run('depositToHall("training", 0)') === true && state().training === null, 'max training fish not deposited');
+assert(state().hall.length === 1 && state().hall[0].id === 'koi', 'hall entry wrong');
+assert(run('pondRate()') === rateWithPondOnly, 'hall fish produced coins');
+
+run('state.training = {id:"koi", s:40, tier:10, luck:0, born:Date.now()};');
+assert(run('depositToHall("training", 0)') === false && state().training !== null, 'duplicate hall deposit accepted');
+
+run('state.pond[0].tier = 10;');
+assert(run('depositToHall("pond", 0)') === true && state().pond[0] === null, 'pond fish not deposited');
+assert(state().hall.length === 2, 'pond deposit not stored');
+assert(run('pondRate()') === 0, 'deposited fish still producing');
+
+// retrieval only into an empty production slot
+run('state.training = null;');
+assert(run('retrieveFromHall("koi")') === true && state().hall.length === 1, 'retrieve from hall failed');
+assert(state().pond.filter(Boolean).length === 1 && state().pond.filter(Boolean)[0].id === 'koi', 'retrieved fish not in pond');
+assert(Math.abs(run('pondRate()') - run('slotRate(state.pond.find(Boolean))')) < 1e-9, 'retrieved fish does not produce');
+
+run('state.pond = [state.pond.find(Boolean), {id:"carp", s:20, tier:1, luck:0, born:Date.now()}, {id:"eel", s:20, tier:1, luck:0, born:Date.now()}]; state.pondSlots = 3;');
+assert(run('retrieveFromHall("carp")') === false && state().hall.length === 1, 'retrieval into full pond should be blocked');
+
+// malformed training/hall entries are dropped, duplicates keep the first
+run('state.training = {id:"nope"}; state.hall = [{id:"carp",tier:9},{id:"koi",tier:10},{id:"koi",tier:10},{id:"nope",tier:10}]; ensureTrainingHall();');
+assert(state().training === null, 'invalid training slot not cleared');
+assert(state().hall.length === 1 && state().hall[0].id === 'koi' && state().hall[0].tier === 10, 'hall entries not sanitized');
+run('checkAchievements = __checkAch2;');
+setRandom([0.5]);
+
 // ---- M3: market ------------------------------------------------------------
 run('state.marketSeed = 123456789;');
 const fishIds = run('FISH.map(f => f.id)');
@@ -496,7 +559,7 @@ assert(run('slotRate({ id: "frilled", s: 9999, tier: 10 })') >= 449, 'top fish s
 assert(run('slotRate({ id: "whaleshark", s: 9999, tier: 10 })') > run('slotRate({ id: "coelacanth", s: 9999, tier: 10 })'), 'rarer fish should still pay more');
 assert(run('slotRate({ id: "carp", s: 9999, tier: 10 })') > 60, 'common fish pond rate too low');
 run('state.dexStats = __dex2;');
-run('state.pond[0].luck = 0;');
+run('state.pond[0].tier = 3; state.pond[0].luck = 0;');
 assert(Math.abs(run('ampChance(state.pond[0])') - 0.32) < 1e-9, 'tier3 base chance wrong');
 run('state.pond[0].luck = 50;');
 assert(Math.abs(run('ampChance(state.pond[0])') - 0.57) < 1e-9, 'luck bonus wrong');
@@ -595,6 +658,7 @@ assert(migrated.qualityPaid === true && migrated.qualityComp === 199, 'quality c
 assert(migrated.basket.length === 3 && migrated.basket.every(it => !('q' in it)), 'basket quality not stripped');
 assert(migrated.pond.filter(Boolean).every(s => !('q' in s)), 'pond quality not stripped');
 assert(migrated.dexStats.carp.bestTier === 3 && migrated.dexStats.koi.bestTier === 1, 'legacy pond quality not recorded as best tier');
+assert(migrated.training === null && Array.isArray(migrated.hall) && migrated.hall.length === 0, 'old save got phantom training/hall');
 assert(!('perfect1' in migrated.ach) && migrated.ach.first === 1, 'quality achievement not cleaned');
 assert(!('perfects' in migrated.stats) && !('bestRarity' in migrated.stats), 'quality stats not cleaned');
 const migratedRaw = JSON.parse(storage.get('pixel_fisher_v1'));
@@ -618,13 +682,41 @@ assert(els.get('dexGrid').innerHTML.includes('22%'), 'dex rate label missing');
 assert(!els.get('dexGrid').innerHTML.includes('稀有'), 'dex still shows old rarity labels');
 assert(els.get('dexGrid').innerHTML.includes('dex-best') && els.get('dexGrid').innerHTML.includes('黄金'), 'dex best tier badge missing');
 assert(els.get('dexSummary').innerHTML.includes('永恒勋章'), 'dex medal summary missing');
+assert(els.get('dexSummary').innerHTML.includes('馆藏'), 'dex hall summary missing');
+run('state.training = {id:"eel", s:33, tier:3, luck:8, born:Date.now()}; state.hall = [{id:"koi", s:50, tier:10, luck:0, born:Date.now()}]; renderPond();');
+assert(els.get('trainingWrap').innerHTML.includes('training-slot filled') && els.get('trainingWrap').innerHTML.includes('升级'), 'filled training cell missing');
+run('openHall();');
+assert(els.get('modalTitle').textContent === '图鉴馆', 'hall modal title missing');
+assert(els.get('modalBody').innerHTML.includes('hall-cell stored') && els.get('modalBody').innerHTML.includes('hall-badge pond'), 'hall modal cells missing');
+run('openHallFish("koi");');
+assert(els.get('modalBody').innerHTML.includes('图鉴馆藏品'), 'hall fish modal missing');
 run('state.rod = 5; state.rodRefine = 1; state.coins = 1000000; updateUI();');
 assert(els.get('refineRod').disabled === true && els.get('refineRod').textContent === 'Lv.10', 'refine button should be locked at rod 5');
 run('state.rod = 10; updateUI();');
 assert(els.get('refineRod').disabled === false && els.get('refineStage').textContent.includes('乌木竿'), 'refine shop label/button wrong');
 
+// ---- training/hall save sanitization ---------------------------------------
+const hallSave = {
+  saveVer: 8, qualityPaid: true, coins: 100, charms: 0, pond: [null, null, null], pondSlots: 3,
+  basket: [], dex: {}, dexStats: { carp: { n: 1, max: 0, first: 1, bestTier: 3 } }, ach: {}, stats: {},
+  marketSeed: 42, lastActive: 1700000000000,
+  training: { id: 'eel', s: 33, tier: 2, luck: 4, born: 1700000000000 },
+  hall: [
+    { id: 'koi', s: 50, tier: 10, luck: 0, born: 1700000000000 },
+    { id: 'carp', s: 20, tier: 9 },
+    { id: 'koi', s: 51, tier: 10 },
+    { id: 'dragon', s: 20, tier: 10 },
+  ],
+};
+storage.set('pixel_fisher_v1', JSON.stringify(hallSave));
+assert(run('load()') === true, 'training/hall save failed to load');
+assert(state().training && state().training.id === 'eel' && state().training.tier === 2, 'valid training slot not loaded');
+assert(state().hall.length === 1 && state().hall[0].id === 'koi' && state().hall[0].tier === 10, 'hall entries not filtered');
+assert(run('bestTierOf("koi")') === 10, 'hall tier not seeded into dex');
+
 // ---- persistence -----------------------------------------------------------
 run('state.chum = 12; state.rod = 15; state.rodRefine = 2;');
+run('state.basket = [{id:"carp",b:10,v:10,s:40,tier:3}]; state.training = {id:"eel", s:44, tier:3, luck:8, born:Date.now()}; state.hall = [{id:"koi", s:50, tier:10, luck:0, born:Date.now()}];');
 run('save()');
 const saved = JSON.parse(storage.get('pixel_fisher_v1'));
 assert(typeof saved.food === 'number' && Array.isArray(saved.pond), 'save incomplete');
@@ -641,6 +733,11 @@ assert(!('perfects' in saved.stats) && !('bestRarity' in saved.stats), 'legacy q
 assert(!('orders' in saved) && !('ordersDay' in saved) && !('ordersDone' in saved.stats), 'legacy order fields leaked into save');
 assert(typeof saved.marketSeed === 'number' && saved.marketSeed > 0, 'market seed not saved');
 assert(!('phase' in saved) && !('fight' in saved) && !('castBait' in saved), 'transient state leaked');
+assert(saved.training && saved.training.id === 'eel' && saved.training.tier === 3, 'training not saved');
+assert(Array.isArray(saved.hall) && saved.hall.length === 1 && saved.hall[0].id === 'koi' && saved.hall[0].tier === 10, 'hall not saved');
+assert(run('load()') === true, 'training/hall save failed to reload');
+assert(state().training && state().training.id === 'eel' && state().training.tier === 3, 'training lost on reload');
+assert(state().hall.length === 1 && state().hall[0].id === 'koi' && state().hall[0].tier === 10, 'hall lost on reload');
 
 // ---- charm cap migration: extra charms refunded at legacy price ------------
 const charmLegacy = {
@@ -655,4 +752,27 @@ assert(state().coins === 1700, 'legacy charm refund wrong: ' + state().coins);
 assert(run('load()') === true, 'capped charm save failed to reload');
 assert(state().coins === 1700, 'legacy charm refund paid twice');
 
-console.log('PASS  caught=' + state().totalCaught + '  23 fish rates ok  weights ok  pond/upgrade ok  rod refine ok  market ok  shop/chum ok  dex/v8 migration ok  save ok');
+// ---- pre-training v8 save: pond/basket/dex must stay untouched --------------
+const oldV8 = {
+  saveVer: 8, qualityPaid: true, coins: 3210, charms: 1, pondSlots: 6,
+  pond: [
+    { id: 'carp', s: 41, tier: 7, luck: 12, born: 1700000000000 },
+    { id: 'koi', s: 61, tier: 3, luck: 0, born: 1700000000000 },
+    null, null, null, null,
+  ],
+  basket: [{ id: 'eel', b: 30, v: 35, s: 44, tier: 2 }],
+  dex: { carp: 8 }, dexStats: { carp: { n: 8, max: 50, first: 1700000000000, bestTier: 7 } },
+  ach: {}, stats: {}, marketSeed: 42, lastActive: 1700000000000,
+};
+storage.set('pixel_fisher_v1', JSON.stringify(oldV8));
+assert(run('load()') === true, 'pre-training v8 save failed to load');
+assert(state().training === null && state().hall.length === 0, 'pre-training save invented training/hall data');
+assert(state().coins === 3210 && state().charms === 1, 'pre-training save coins/charms changed');
+assert(state().pondSlots === 6 && state().pond[0].id === 'carp' && state().pond[0].tier === 7 && state().pond[1].id === 'koi', 'pre-training pond changed');
+assert(state().basket.length === 1 && state().basket[0].id === 'eel' && state().basket[0].tier === 2, 'pre-training basket changed');
+assert(state().dexStats.carp.bestTier === 7 && state().dexStats.carp.n === 8, 'pre-training dex record changed');
+assert(run('bestTierOf("koi")') === 3, 'pre-training pond tier not seeded into dex');
+const oldV8Raw = JSON.parse(storage.get('pixel_fisher_v1'));
+assert(oldV8Raw.saveVer === 8 && oldV8Raw.pond[0].tier === 7 && oldV8Raw.basket[0].tier === 2, 'pre-training save rewritten incorrectly');
+
+console.log('PASS  caught=' + state().totalCaught + '  23 fish rates ok  weights ok  pond/upgrade ok  training/hall ok  rod refine ok  market ok  shop/chum ok  dex/v8 migration ok  save ok');
