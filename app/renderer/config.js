@@ -32,9 +32,9 @@ const FOOD_PACKS = [
 
 const POND_EXPAND = [1200, 4000, 10000];
 
-/* 鱼塘单条鱼产速：最贵的鱼 + 永恒品质 + 满体型 + 满图鉴 = 90/分钟封顶。
+/* 鱼塘单条鱼产速：最贵的鱼 + 永恒品质 + 满体型 + 满图鉴 = 450/分钟封顶。
    鱼价按四次方根压缩，稀有鱼进鱼塘后不会滚出离谱收益。 */
-const POND_RATE_CAP = 90;
+const POND_RATE_CAP = 450;
 const POND_TOP_VALUE = 3200;
 const POND_VALUE_EXP = 0.25;
 

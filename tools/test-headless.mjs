@@ -476,10 +476,10 @@ run('state.rodRefine = 0; state.rod = 1;');
 
 // ---- pond rate cap ---------------------------------------------------------
 run('var __dex2 = state.dexStats; state.dexStats = Object.fromEntries(FISH.map(f => [f.id, {n:1,max:0,first:1}]));');
-assert(run('FISH.every(f => slotRate({ id: f.id, s: 9999, tier: 10 }) <= 90.0001)'), 'pond rate exceeded the 90/min cap');
-assert(run('slotRate({ id: "frilled", s: 9999, tier: 10 })') >= 89, 'top fish should reach the cap');
+assert(run('FISH.every(f => slotRate({ id: f.id, s: 9999, tier: 10 }) <= 450.0001)'), 'pond rate exceeded the 450/min cap');
+assert(run('slotRate({ id: "frilled", s: 9999, tier: 10 })') >= 449, 'top fish should reach the cap');
 assert(run('slotRate({ id: "whaleshark", s: 9999, tier: 10 })') > run('slotRate({ id: "coelacanth", s: 9999, tier: 10 })'), 'rarer fish should still pay more');
-assert(run('slotRate({ id: "carp", s: 9999, tier: 10 })') > 12, 'common fish pond rate too low');
+assert(run('slotRate({ id: "carp", s: 9999, tier: 10 })') > 60, 'common fish pond rate too low');
 run('state.dexStats = __dex2;');
 run('state.pond[0].luck = 0;');
 assert(Math.abs(run('ampChance(state.pond[0])') - 0.32) < 1e-9, 'tier3 base chance wrong');
