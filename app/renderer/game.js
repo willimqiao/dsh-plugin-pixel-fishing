@@ -5,6 +5,7 @@ const state = {
   saveVer: SAVE_VERSION,
   coins: 0,
   rod: 1,
+  rodRefine: 0,
   basketLv: 1,
   autoSell: false,
   autoSellOwned: false,
@@ -61,6 +62,38 @@ function capacity() {
 function rodCost() {
   return Math.floor(60 * Math.pow(1.7, state.rod - 1));
 }
+
+/* ---------------- 鱼竿淬炼 ---------------- */
+function rodRefineLevel() {
+  return (state.rodRefine + 1) * ROD_REFINE_EVERY;
+}
+function rodStage(n) {
+  const refine = n === undefined ? state.rodRefine : Math.max(0, Math.floor(finite(n, 0)));
+  if (refine >= ROD_REFINE_STAGES.length) {
+    const top = ROD_REFINE_STAGES[ROD_REFINE_STAGES.length - 1];
+    return { rod: '无双竿', title: '无双钓神', colors: top.colors };
+  }
+  return ROD_REFINE_STAGES[refine];
+}
+function rodRefineCost() {
+  return Math.floor(60 * Math.pow(1.7, rodRefineLevel() - 1) * ROD_REFINE_COST_MULT);
+}
+function refineRod() {
+  if (state.rod < rodRefineLevel()) return false;
+  const cost = rodRefineCost();
+  if (state.coins < cost) return false;
+  state.coins -= cost;
+  state.rodRefine += 1;
+  const stage = rodStage();
+  toast(`淬炼成功：${stage.rod} · 「${stage.title}」`, '#ffd24a');
+  beep(620, 0.1, 'square', 0.05);
+  beep(930, 0.1, 'square', 0.05, 0.08);
+  beep(1240, 0.2, 'square', 0.05, 0.16);
+  spawnSpark(148, 64, 12, stage.colors.glow || '#ffe066');
+  updateUI();
+  save();
+  return true;
+}
 function basketCost() {
   return Math.floor(50 * Math.pow(1.65, state.basketLv - 1));
 }
@@ -72,6 +105,8 @@ function fishWeight(fish, opts) {
   const weather = o.weather || (curWeather ? curWeather.id : currentWeather().id);
   const bait = o.bait || state.castBait;
   let w = fish.rate * (1 + (state.rod - 1) * (ROD_RANK_BOOST[fish.rank] || 0));
+  /* 淬炼只加成 rank≥3 的稀有鱼，普通鱼不受影响 */
+  if (fish.rank >= 3) w *= 1 + ROD_REFINE_RARE_BOOST * state.rodRefine;
 
   if (weather === 'sunny') {
     if (fish.id === 'koi') w *= 2.5;
@@ -217,6 +252,7 @@ function ensureDexStats() {
     rec.n = count(rec.n);
     rec.max = Math.max(0, Math.min(9999, Number(rec.max) || 0));
     rec.first = Math.max(0, Number(rec.first) || 0);
+    rec.bestTier = Math.min(TIERS.length, count(rec.bestTier));
     delete rec.bestQ;
   }
   for (const id of Object.keys(state.dex)) {
@@ -232,6 +268,10 @@ function ensureDexStats() {
   for (const id of Object.keys(state.dexStats)) {
     state.dex[id] = state.dexStats[id].n;
   }
+
+  // 旧档补录：鱼塘和鱼篓里现存的鱼按当前品质记一次；之前卖掉的历史最高无法追溯
+  for (const slot of state.pond || []) if (slot) recordBestTier(slot.id, slot.tier);
+  for (const item of state.basket || []) if (item) recordBestTier(item.id, item.tier);
 
   if (!state.stats || typeof state.stats !== 'object') state.stats = {};
   const s = state.stats;
@@ -295,12 +335,33 @@ function ensureMeta() {
   state.autoSellOwned = Boolean(state.autoSellOwned);
 }
 
-function updateDex(fish, size) {
+function updateDex(fish, size, tier) {
   const rec = state.dexStats[fish.id] || (state.dexStats[fish.id] = { n: 0, max: 0, first: 0 });
   rec.n += 1;
   if (size > rec.max) rec.max = size;
   if (!rec.first) rec.first = Date.now();
   state.dex[fish.id] = rec.n;
+  if (tier) recordBestTier(fish.id, tier);
+}
+
+/* 每种鱼的史上最高品质；鱼塘只有 6 格，轮着养也能集齐满级勋章 */
+function bestTierOf(id) {
+  const rec = state.dexStats && state.dexStats[id];
+  return rec && rec.bestTier ? rec.bestTier : 0;
+}
+
+function eternalCount() {
+  if (!state.dexStats) return 0;
+  let n = 0;
+  for (const f of FISH) if (bestTierOf(f.id) >= TIERS.length) n += 1;
+  return n;
+}
+
+function recordBestTier(id, tier) {
+  if (!FISH_MAP[id]) return;
+  const t = clampInt(tier, 1, TIERS.length, 1);
+  const rec = state.dexStats[id] || (state.dexStats[id] = { n: 0, max: 0, first: 0 });
+  if (t > (rec.bestTier || 0)) rec.bestTier = t;
 }
 
 function checkAchievements() {
@@ -375,7 +436,9 @@ function slotRate(slot) {
   if (!fish) return 0;
   const sizeF = 0.85 + Math.min(0.75, (slot.s || 20) / 200);
   const tierF = tierOf(slot).mult;
-  return Math.min(80, Math.pow(fish.value, 0.55) * 1.1) * sizeF * tierF * (1 + dexBonus());
+  const base = POND_RATE_CAP / (1.6 * TIERS[TIERS.length - 1].mult * 1.15);
+  const valueF = Math.pow(fish.value / POND_TOP_VALUE, POND_VALUE_EXP);
+  return Math.min(POND_RATE_CAP, base * valueF * sizeF * tierF * (1 + dexBonus()));
 }
 
 function pondRate() {
@@ -395,6 +458,7 @@ function putInPond(slotIndex, basketIndex) {
     born: Date.now(),
   };
   state.basket.splice(basketIndex, 1);
+  recordBestTier(item.id, state.pond[slotIndex].tier);
   toast(`${FISH_MAP[item.id].name} 入塘`, '#5fcf7a');
   beep(700, 0.08, 'square', 0.04);
   checkAchievements();
@@ -515,6 +579,7 @@ function amplify(index) {
       state.stats.upStreak += 1;
       state.stats.bestUpStreak = Math.max(state.stats.bestUpStreak, state.stats.upStreak);
       state.stats.bestTier = Math.max(state.stats.bestTier, slot.tier);
+      recordBestTier(slot.id, slot.tier);
       if (wasPity) state.stats.pityWins += 1;
       toast(`升级成功！${name} → ${TIERS[slot.tier - 1].name}`, '#ffd24a');
       successFanfare(slot.tier);
@@ -864,7 +929,7 @@ function catchFish(fish, silent) {
   state.stats.weatherCaught[weatherId()] = (state.stats.weatherCaught[weatherId()] || 0) + 1;
   if (BAITS[state.castBait]) state.stats.baitCaught[state.castBait] += 1;
   if (state.castBait === 'glow' && fish.rate <= BAITS.glow.rateMax) state.stats.glowRare = true;
-  updateDex(fish, size);
+  updateDex(fish, size, tier);
 
   const keep = keepsOnAutoSell(fish, tier);
   const wasFull = basketFull();
@@ -1133,6 +1198,11 @@ function ensureState() {
   state.saveVer = SAVE_VERSION;
   state.coins = Math.max(0, Math.min(1e12, finite(state.coins, 0)));
   state.rod = clampInt(state.rod, 1, 999, 1);
+  // 第 r 段淬炼是在 Lv.5r 买的，所以 Lv.25 刚淬到第 5 段是合法状态
+  state.rodRefine = Math.min(
+    clampInt(state.rodRefine, 0, 199, 0),
+    Math.floor(state.rod / ROD_REFINE_EVERY)
+  );
   state.basketLv = clampInt(state.basketLv, 1, 999, 1);
   state.totalCaught = clampInt(state.totalCaught, 0, 1e9, 0);
   state.autoSell = Boolean(state.autoSell);
@@ -1274,7 +1344,7 @@ function settleOffline(since) {
       state.stats.soldCoins += value;
       if (marketMult(f.id) >= MARKET_HOT) state.stats.highSells += 1;
     }
-    updateDex(f, size);
+    updateDex(f, size, tier);
     state.stats.maxSize = Math.max(state.stats.maxSize, size);
     state.stats.minRate = Math.min(state.stats.minRate, f.rate);
     state.stats.bestTier = Math.max(state.stats.bestTier, tier);

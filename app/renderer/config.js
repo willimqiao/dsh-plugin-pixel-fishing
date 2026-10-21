@@ -32,6 +32,12 @@ const FOOD_PACKS = [
 
 const POND_EXPAND = [1200, 4000, 10000];
 
+/* 鱼塘单条鱼产速：最贵的鱼 + 永恒品质 + 满体型 + 满图鉴 = 90/分钟封顶。
+   鱼价按四次方根压缩，稀有鱼进鱼塘后不会滚出离谱收益。 */
+const POND_RATE_CAP = 90;
+const POND_TOP_VALUE = 3200;
+const POND_VALUE_EXP = 0.25;
+
 const BAIT_PACKS = {
   shrimp: [{ n: 10, cost: 60 }, { n: 30, cost: 150 }],
   glow:   [{ n: 5,  cost: 45 }, { n: 15, cost: 120 }],
@@ -72,6 +78,38 @@ const RANK_FIGHT = [
 
 /* 鱼竿对越稀有的鱼加成越大（按 rank 0–5） */
 const ROD_RANK_BOOST = [0, 0.05, 0.09, 0.13, 0.18, 0.24];
+
+/* 淬炼：鱼竿每 5 级开放一段，花金币换竿身外观与称号，稀有鱼权重每段 +12%。
+   费用为解锁等级鱼竿价格的两倍，跟着升级曲线一起变贵。 */
+const ROD_REFINE_EVERY = 5;
+const ROD_REFINE_COST_MULT = 2;
+const ROD_REFINE_RARE_BOOST = 0.12;
+const ROD_REFINE_STAGES = [
+  {
+    rod: '青竹竿', title: '',
+    colors: { handle: '#6a4a2a', handleHi: '#8a6238', shaft: '#c8a878', shaftHi: '#a88858', tip: '#f2e2c4', reel: '#8a8fa8', reelHi: '#c8d0e0', accent: '#d8e0f0', glow: '' },
+  },
+  {
+    rod: '乌木竿', title: '溪畔钓客',
+    colors: { handle: '#2e2018', handleHi: '#4a3528', shaft: '#6a4a32', shaftHi: '#4a3222', tip: '#e8c890', reel: '#6a5238', reelHi: '#b89060', accent: '#e8c890', glow: '' },
+  },
+  {
+    rod: '碳素竿', title: '湖心行家',
+    colors: { handle: '#242832', handleHi: '#3a4250', shaft: '#586274', shaftHi: '#3c4654', tip: '#bfe8ff', reel: '#4a5866', reelHi: '#8ab8d8', accent: '#9fdcff', glow: '' },
+  },
+  {
+    rod: '深海竿', title: '深海猎手',
+    colors: { handle: '#162840', handleHi: '#24425e', shaft: '#2e5c8a', shaftHi: '#1e4062', tip: '#9fe8ff', reel: '#2e5570', reelHi: '#68b8d8', accent: '#7fe0ff', glow: '#4ac8ff' },
+  },
+  {
+    rod: '星辉竿', title: '星辉钓王',
+    colors: { handle: '#241638', handleHi: '#3a2456', shaft: '#5a3a8a', shaftHi: '#3c2862', tip: '#e8c8ff', reel: '#4c3266', reelHi: '#a070d8', accent: '#c88cff', glow: '#b06cff' },
+  },
+  {
+    rod: '苍穹竿', title: '苍穹之主',
+    colors: { handle: '#33240e', handleHi: '#523a18', shaft: '#a07830', shaftHi: '#705218', tip: '#fff0b8', reel: '#6a5220', reelHi: '#e8c050', accent: '#ffe066', glow: '#ffe066' },
+  },
+];
 
 /* 品质：10 阶通用阶梯。weight 是野生品质的抽取权重。 */
 const TIERS = [
@@ -115,6 +153,9 @@ const ACHIEVEMENTS = [
   { id: 'dex6',       name: '图鉴半成', desc: '收集 6 种鱼',            cat: '收集', reward: 100, goal: 6,    get: () => dexCount(),                               test: () => dexCount() >= 6 },
   { id: 'dex12',      name: '图鉴大成', desc: '收集 12 种鱼',           cat: '收集', reward: 300, goal: 12,   get: () => dexCount(),                               test: () => dexCount() >= 12 },
   { id: 'dex20',      name: '图鉴全满', desc: '收集全部 23 种鱼',       cat: '收集', reward: 1500, goal: 23,  get: () => dexCount(),                               test: () => dexCount() >= 23 },
+  { id: 'eternal6',   name: '六鱼永恒', desc: '6 种鱼达到永恒品质',     cat: '收集', reward: 300,  goal: 6,   get: () => eternalCount(),                           test: () => eternalCount() >= 6 },
+  { id: 'eternal12',  name: '十二永恒', desc: '12 种鱼达到永恒品质',    cat: '收集', reward: 900,  goal: 12,  get: () => eternalCount(),                           test: () => eternalCount() >= 12 },
+  { id: 'eternal23',  name: '永恒图鉴', desc: '全部 23 种鱼达到过永恒', cat: '收集', reward: 3000, goal: 23,  get: () => eternalCount(),                           test: () => eternalCount() >= 23 },
   { id: 'max100',     name: '百厘米俱乐部', desc: '钓到一条 100cm 的鱼', cat: '收集', reward: 120, goal: 100, get: s => s.stats.maxSize },
   { id: 'max200',     name: '巨物猎人', desc: '钓到一条 200cm 的鱼',    cat: '收集', reward: 260, goal: 200,  get: s => s.stats.maxSize },
   { id: 'basket5',    name: '五鱼待沽', desc: '鱼篓同时有 5 种鱼',      cat: '收集', reward: 100, goal: 5,    get: () => basketSpecies() },

@@ -195,7 +195,16 @@ setRandom([0.5]);
 // ---- M2: dex ---------------------------------------------------------------
 run('state.dexStats = {}; state.dex = {}; ensureDexStats(); updateDex(FISH_MAP.carp, 40);');
 assert(state().dexStats.carp.n === 1 && state().dexStats.carp.max === 40, 'dex not updated');
-assert(state().dexStats.carp.bestQ === undefined, 'dex still stores old quality');
+assert(state().dexStats.carp.bestQ === undefined && state().dexStats.carp.bestTier === undefined, 'dex still stores old quality');
+run('updateDex(FISH_MAP.carp, 55, 3); updateDex(FISH_MAP.carp, 60, 2);');
+assert(state().dexStats.carp.n === 3 && state().dexStats.carp.bestTier === 3, 'best tier not recorded or lowered by a worse fish');
+assert(run('eternalCount()') === 0, 'eternal count should be zero before any eternal fish');
+run('updateDex(FISH_MAP.carp, 70, 10);');
+assert(state().dexStats.carp.bestTier === 10 && run('eternalCount()') === 1, 'eternal tier not recorded');
+run('var __pond0 = state.pond, __basket0 = state.basket, __dex0 = state.dex, __dexStats0 = state.dexStats;');
+run('state.pond = [{id:"koi", tier:10}]; state.basket = [{id:"eel", tier:7}]; state.dex = {}; state.dexStats = {}; ensureDexStats();');
+assert(run('bestTierOf("koi")') === 10 && run('bestTierOf("eel")') === 7 && run('eternalCount()') === 1, 'pond/basket tiers not seeded into dex records');
+run('state.pond = __pond0; state.basket = __basket0; state.dex = __dex0; state.dexStats = __dexStats0;');
 assert(run('dexCount()') === 1, 'dex count wrong');
 run('var __dex = state.dexStats; state.dexStats = Object.fromEntries(FISH.map(f => [f.id, {n:1,max:0,first:1}])); if (dexBonus() !== 0.15) throw new Error("full dex bonus wrong"); state.dexStats = __dex;');
 
@@ -256,14 +265,16 @@ run('state.chum = 0;');
 // ---- M3: pond + amplification ---------------------------------------------
 // 本段只验升级扣费，关掉成就奖励，避免奖励金币混进断言
 run('var __checkAch = checkAchievements; checkAchievements = function(){};');
-run('state.basket = [{id:"carp", v:20, s:40, tier:1}]; state.food = 1000; state.charms = 0; state.coins = 1000; ensurePond(); putInPond(0,0);');
+run('state.basket = [{id:"carp", v:20, s:40, tier:1}]; state.food = 1000; state.charms = 0; state.coins = 1000; ensurePond(); state.dexStats.carp.bestTier = 0; putInPond(0,0);');
 assert(state().pond[0].tier === 1, 'pond fish tier wrong');
 assert(state().pond[0].q === undefined, 'pond still stores old quality');
+assert(run('bestTierOf("carp")') === 1, 'putInPond did not record best tier');
 
 setRandom([0]);                 // success
 lastStamp = null;
 run('amplify(0)');
 assert(state().pond[0].tier === 2, 'amplify success failed');
+assert(run('bestTierOf("carp")') === 2, 'pond upgrade did not record best tier');
 assert(state().food === 976 && state().coins === 940, 'amplify food/coin cost wrong');
 assert(lastStamp === '升级成功', 'success stamp missing');
 
@@ -432,6 +443,44 @@ run('state.coins = 100000; document.getElementById("pondExpand").click(); docume
 assert(state().pondSlots === 6 && state().pond.length === 6, 'pond expansion did not reach six slots');
 run('document.getElementById("pondExpand").click();');
 assert(state().pondSlots === 6 && state().pond.length === 6, 'pond expanded past the six-slot cap');
+
+// ---- rod refine ------------------------------------------------------------
+run('state.rod = 5; state.rodRefine = 0; state.coins = 1000000; ensureState();');
+assert(run('rodRefineLevel()') === 5, 'first refine gate wrong');
+assert(run('rodRefineCost()') === 1002, 'first refine cost wrong');
+run('state.rod = 4; document.getElementById("refineRod").click();');
+assert(state().rodRefine === 0 && state().coins === 1000000, 'refine allowed below rod 5');
+run('state.rod = 5; state.coins = 1001; document.getElementById("refineRod").click();');
+assert(state().rodRefine === 0 && state().coins === 1001, 'refine charged without enough coins');
+run('state.coins = 1002; document.getElementById("refineRod").click();');
+assert(state().rodRefine === 1 && state().coins === 0, 'refine purchase wrong');
+assert(run('rodStage().rod') === '乌木竿' && run('rodStage().title') === '溪畔钓客', 'refine stage/title wrong');
+assert(run('rodRefineLevel()') === 10 && run('rodRefineCost()') === 14230, 'second refine gate/cost wrong');
+assert(run('rodStage(9).rod') === '无双竿' && run('rodStage(9).title') === '无双钓神', 'refine overflow fallback wrong');
+run('state.rod = 4; state.rodRefine = 3; ensureState();');
+assert(state().rodRefine === 0, 'refine stages not capped by rod level');
+run('state.rod = 12; state.rodRefine = 99; ensureState();');
+assert(state().rodRefine === 2, 'refine stage cap wrong for rod 12');
+run('state.rod = 25; state.rodRefine = 5; ensureState();');
+assert(state().rodRefine === 5, 'freshly bought refine stage was rolled back on load');
+
+run('state.rod = 1; state.rodRefine = 0; state.castBait = "worm"; state.chum = 0; curWeather = WEATHERS[0];');
+const goldenBase = run('fishWeight(FISH_MAP.golden)');
+const carpBase = run('fishWeight(FISH_MAP.carp)');
+run('state.rodRefine = 3;');
+const goldenRefined = run('fishWeight(FISH_MAP.golden)');
+const carpRefined = run('fishWeight(FISH_MAP.carp)');
+assert(Math.abs(goldenRefined / goldenBase - 1.36) < 1e-9, 'refine rare weight bonus wrong');
+assert(Math.abs(carpRefined - carpBase) < 1e-9, 'refine boosted common fish');
+run('state.rodRefine = 0; state.rod = 1;');
+
+// ---- pond rate cap ---------------------------------------------------------
+run('var __dex2 = state.dexStats; state.dexStats = Object.fromEntries(FISH.map(f => [f.id, {n:1,max:0,first:1}]));');
+assert(run('FISH.every(f => slotRate({ id: f.id, s: 9999, tier: 10 }) <= 90.0001)'), 'pond rate exceeded the 90/min cap');
+assert(run('slotRate({ id: "frilled", s: 9999, tier: 10 })') >= 89, 'top fish should reach the cap');
+assert(run('slotRate({ id: "whaleshark", s: 9999, tier: 10 })') > run('slotRate({ id: "coelacanth", s: 9999, tier: 10 })'), 'rarer fish should still pay more');
+assert(run('slotRate({ id: "carp", s: 9999, tier: 10 })') > 12, 'common fish pond rate too low');
+run('state.dexStats = __dex2;');
 run('state.pond[0].luck = 0;');
 assert(Math.abs(run('ampChance(state.pond[0])') - 0.32) < 1e-9, 'tier3 base chance wrong');
 run('state.pond[0].luck = 50;');
@@ -449,12 +498,20 @@ assert(state().coins > 0, 'selected sale gave no coins');
 assert(run('sellFish("ghost")') === 0 && state().basket.length === 1, 'empty sale mutated basket');
 
 // ---- achievements ----------------------------------------------------------
-assert(run('ACHIEVEMENTS.length') === 34, 'achievement count changed unexpectedly');
-assert(run('new Set(ACHIEVEMENTS.map(a => a.id)).size') === 34, 'duplicate achievement ids');
+assert(run('ACHIEVEMENTS.length') === 37, 'achievement count changed unexpectedly');
+assert(run('new Set(ACHIEVEMENTS.map(a => a.id)).size') === 37, 'duplicate achievement ids');
 assert(run('ACHIEVEMENTS.every(a => ACH_CATEGORIES.includes(a.cat))'), 'achievement category invalid');
 assert(run('ACHIEVEMENTS.filter(a => a.get && a.goal).length') >= 20, 'too few progress achievements');
 assert(run('ACHIEVEMENTS.some(a => a.id === "dex20") && ACHIEVEMENTS.some(a => a.id === "chum30")'), 'new achievements missing');
 assert(run('ACHIEVEMENTS.find(a => a.id === "dex20").goal') === run('FISH.length'), 'dex achievement goal should match fish count');
+assert(run('["eternal6","eternal12","eternal23"].every(id => ACHIEVEMENTS.find(a => a.id === id))'), 'eternal achievements missing');
+assert(run('ACHIEVEMENTS.find(a => a.id === "eternal23").goal') === run('FISH.length'), 'eternal achievement goal should match fish count');
+run(`var __ach0 = state.ach, __coins0 = state.coins, __dexStats4 = state.dexStats, __dex4 = state.dex;
+state.ach = {}; state.coins = 1000;
+state.dexStats = Object.fromEntries(FISH.slice(0, 6).map(f => [f.id, {n: 1, max: 0, first: 1, bestTier: 10}]));
+ensureDexStats(); checkAchievements();`);
+assert(state().ach.eternal6 && !state().ach.eternal12, 'eternal achievement threshold wrong');
+run('state.ach = __ach0; state.coins = __coins0; state.dexStats = __dexStats4; state.dex = __dex4;');
 run('state.ach = {}; state.coins = 20000; ensureDexStats();');
 const achBefore = state().coins;
 run('checkAchievements()');
@@ -482,6 +539,7 @@ assert(robust.marketSel === 'crucian', 'unknown market selection kept');
 assert(robust.basket.length === 2 && robust.basket.every(it => it.id === 'carp' && it.v >= 1 && it.s >= 0 && it.tier >= 1 && !('q' in it)), 'basket not sanitized');
 assert(!('nope' in robust.dex) && !('nope' in robust.dexStats), 'unknown dex entries kept');
 assert(robust.dexStats.carp.n === 3 && robust.dexStats.carp.max === 0 && !('bestQ' in robust.dexStats.carp), 'dex record not normalized');
+assert(robust.dexStats.carp.bestTier === 10, 'dex best tier not clamped or seeded from pond');
 assert(robust.stats.bestTier === 10 && robust.stats.minRate === 7, 'stat caps/minRate wrong');
 assert(!('perfects' in robust.stats) && !('bestRarity' in robust.stats) && !('bestStreak' in robust.stats), 'legacy quality stats kept');
 assert(robust.stats.weatherCaught.rain === 0 && robust.stats.baitCaught.shrimp === 0, 'counter stats wrong');
@@ -521,6 +579,7 @@ assert(migrated.coins === 1199, 'quality compensation amount wrong: ' + migrated
 assert(migrated.qualityPaid === true && migrated.qualityComp === 199, 'quality compensation flag wrong');
 assert(migrated.basket.length === 3 && migrated.basket.every(it => !('q' in it)), 'basket quality not stripped');
 assert(migrated.pond.filter(Boolean).every(s => !('q' in s)), 'pond quality not stripped');
+assert(migrated.dexStats.carp.bestTier === 3 && migrated.dexStats.koi.bestTier === 1, 'legacy pond quality not recorded as best tier');
 assert(!('perfect1' in migrated.ach) && migrated.ach.first === 1, 'quality achievement not cleaned');
 assert(!('perfects' in migrated.stats) && !('bestRarity' in migrated.stats), 'quality stats not cleaned');
 const migratedRaw = JSON.parse(storage.get('pixel_fisher_v1'));
@@ -542,22 +601,30 @@ run('renderMarket(true); renderDex(true); renderAch(); renderPond(); updateUI();
 assert(els.get('marketRate').textContent.includes('出率'), 'market rate label missing');
 assert(els.get('dexGrid').innerHTML.includes('22%'), 'dex rate label missing');
 assert(!els.get('dexGrid').innerHTML.includes('稀有'), 'dex still shows old rarity labels');
+assert(els.get('dexGrid').innerHTML.includes('dex-best') && els.get('dexGrid').innerHTML.includes('黄金'), 'dex best tier badge missing');
+assert(els.get('dexSummary').innerHTML.includes('永恒勋章'), 'dex medal summary missing');
+run('state.rod = 5; state.rodRefine = 1; state.coins = 1000000; updateUI();');
+assert(els.get('refineRod').disabled === true && els.get('refineRod').textContent === 'Lv.10', 'refine button should be locked at rod 5');
+run('state.rod = 10; updateUI();');
+assert(els.get('refineRod').disabled === false && els.get('refineStage').textContent.includes('乌木竿'), 'refine shop label/button wrong');
 
 // ---- persistence -----------------------------------------------------------
-run('state.chum = 12;');
+run('state.chum = 12; state.rod = 15; state.rodRefine = 2;');
 run('save()');
 const saved = JSON.parse(storage.get('pixel_fisher_v1'));
 assert(typeof saved.food === 'number' && Array.isArray(saved.pond), 'save incomplete');
 assert(saved.bait && typeof saved.bait.shrimp === 'number', 'bait not saved');
 assert(typeof saved.autoSellOwned === 'boolean', 'auto sell ownership not saved');
 assert(saved.chum === 12, 'chum not saved');
+assert(saved.rodRefine === 2, 'refine stage not saved');
 assert(saved.saveVer === 8, 'save version not bumped');
 assert(saved.qualityPaid === true && !('qualityComp' in saved), 'quality compensation leaked into save');
 assert(!('q' in saved.basket[0]) && saved.basket.every(it => !('q' in it)), 'quality stars leaked into save');
 assert(saved.dexStats.carp && !('bestQ' in saved.dexStats.carp), 'dex quality leaked into save');
+assert(saved.dexStats.carp.bestTier === 3, 'best tier not saved');
 assert(!('perfects' in saved.stats) && !('bestRarity' in saved.stats), 'legacy quality stats leaked into save');
 assert(!('orders' in saved) && !('ordersDay' in saved) && !('ordersDone' in saved.stats), 'legacy order fields leaked into save');
 assert(typeof saved.marketSeed === 'number' && saved.marketSeed > 0, 'market seed not saved');
 assert(!('phase' in saved) && !('fight' in saved) && !('castBait' in saved), 'transient state leaked');
 
-console.log('PASS  caught=' + state().totalCaught + '  23 fish rates ok  weights ok  pond/upgrade ok  market ok  shop/chum ok  dex/v8 migration ok  save ok');
+console.log('PASS  caught=' + state().totalCaught + '  23 fish rates ok  weights ok  pond/upgrade ok  rod refine ok  market ok  shop/chum ok  dex/v8 migration ok  save ok');

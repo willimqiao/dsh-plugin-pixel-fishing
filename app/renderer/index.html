@@ -219,6 +219,29 @@
   }
   .dex-cell.locked img { filter: brightness(0) opacity(.22); }
   .dex-name { font-size: 11px; font-weight: 700; line-height: 1.2; }
+  .dex-best {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-height: 12px;
+    margin-top: 3px;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .dex-best i {
+    width: 5px;
+    height: 5px;
+    border-radius: 1px;
+    box-shadow: 0 0 4px currentColor;
+  }
+  .dex-cell.eternal {
+    background: linear-gradient(180deg, #232c42, #1a2030 62%);
+    box-shadow: 0 0 10px rgba(232,244,255,.18), inset 0 0 14px rgba(232,244,255,.06);
+  }
+  .dex-cell.eternal:hover { background: #26304a; }
+  .dex-cell.eternal .dex-name { text-shadow: 0 0 6px rgba(232,244,255,.55); }
   .dex-meta { font-size: 10px; color: #6a7699; margin-top: 2px; }
   .dex-cell.locked .dex-name { color: #3a4466; }
 
@@ -739,6 +762,13 @@
           <div class="si-desc">上鱼更快，低出率鱼加成更高</div>
         </div>
         <button id="buyRod" class="btn buy">60</button>
+      </div>
+      <div class="shop-item">
+        <div class="si-info">
+          <div class="si-title">🔥 淬炼 <span id="refineStage" style="color:#ffd24a">青竹竿</span></div>
+          <div class="si-desc" id="refineDesc">鱼竿 Lv.5 解锁 · 稀有鱼权重每段 +12%</div>
+        </div>
+        <button id="refineRod" class="btn buy" disabled>1,002</button>
       </div>
       <div class="shop-item">
         <div class="si-info">

@@ -1074,18 +1074,31 @@ function drawRod(t) {
   const tip = rodTip(t);
   const handX = 68;
   const handY = 112;
+  const c = rodStage().colors;
+
+  // 淬炼光晕：垫在竿身下面，越靠后的品阶越亮
+  if (c.glow) {
+    const pulse = 0.5 + Math.sin(t * 2.4) * 0.5;
+    ctx.globalAlpha = 0.06 + pulse * 0.07;
+    px(tip.x - 5, tip.y - 5, 12, 12, c.glow);
+    ctx.globalAlpha = 0.12 + pulse * 0.12;
+    px(tip.x - 3, tip.y - 3, 8, 8, c.glow);
+    ctx.globalAlpha = 0.07 + pulse * 0.07;
+    px((handX + 4 + tip.x) / 2 - 2, (114 + tip.y) / 2 - 1, 6, 3, c.glow);
+    ctx.globalAlpha = 1;
+  }
 
   // 竿身
-  line(handX - 6, 118, handX + 4, 114, '#6a4a2a');
-  line(handX - 6, 119, handX + 4, 115, '#8a6238');
-  line(handX + 4, 114, tip.x, tip.y, '#c8a878');
-  line(handX + 5, 115, tip.x, tip.y + 1, '#a88858');
-  px(tip.x - 1, tip.y - 1, 2, 2, '#f2e2c4');
+  line(handX - 6, 118, handX + 4, 114, c.handle);
+  line(handX - 6, 119, handX + 4, 115, c.handleHi);
+  line(handX + 4, 114, tip.x, tip.y, c.shaft);
+  line(handX + 5, 115, tip.x, tip.y + 1, c.shaftHi);
+  px(tip.x - 1, tip.y - 1, 2, 2, c.tip);
 
   // 绕线轮
-  px(handX + 1, 116, 4, 4, '#8a8fa8');
-  px(handX + 2, 117, 2, 2, '#c8d0e0');
-  px(handX + 9, 114, 1, 1, '#d8e0f0');
+  px(handX + 1, 116, 4, 4, c.reel);
+  px(handX + 2, 117, 2, 2, c.reelHi);
+  px(handX + 9, 114, 1, 1, c.accent);
 
   // 鱼线
   const lineColor = state.phase === PHASE.FIGHT
@@ -1097,6 +1110,12 @@ function drawRod(t) {
     const x = tip.x + (p.x - tip.x) * k;
     const y = tip.y + (p.y - tip.y) * k;
     ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
+  }
+
+  // 高阶竿的竿尖星火
+  if (c.glow) {
+    const tw = Math.sin(t * 5.4);
+    if (tw > 0.55) px(tip.x - 2 + (tw > 0.9 ? 2 : 0), tip.y - 3, 1, 1, '#ffffff');
   }
 
   if (p.air) return;

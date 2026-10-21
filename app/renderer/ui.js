@@ -111,6 +111,30 @@ function updateUI() {
   rb.textContent = rodCost().toLocaleString();
   rb.disabled = state.coins < rodCost();
 
+  const stage = rodStage();
+  const refineTag = $('refineStage');
+  if (refineTag) {
+    refineTag.textContent = stage.title ? `${stage.rod} · ${stage.title}` : stage.rod;
+    refineTag.style.color = stage.colors.glow || '#ffd24a';
+  }
+  const refineDesc = $('refineDesc');
+  const refineBtn = $('refineRod');
+  const needRod = rodRefineLevel();
+  if (refineDesc) {
+    refineDesc.textContent = state.rod < needRod
+      ? `鱼竿 Lv.${needRod} 解锁 · 稀有鱼权重每段 +12%`
+      : `下一段 ${rodStage(state.rodRefine + 1).rod} · 稀有鱼权重 +12%`;
+  }
+  if (refineBtn) {
+    if (state.rod < needRod) {
+      refineBtn.textContent = `Lv.${needRod}`;
+      refineBtn.disabled = true;
+    } else {
+      refineBtn.textContent = rodRefineCost().toLocaleString();
+      refineBtn.disabled = state.coins < rodRefineCost();
+    }
+  }
+
   const bb = $('buyBasket');
   bb.textContent = basketCost().toLocaleString();
   bb.disabled = state.coins < basketCost();
@@ -536,7 +560,7 @@ function renderDex(force) {
   const grid = $('dexGrid');
   const summary = $('dexSummary');
   if (summary) {
-    summary.innerHTML = `已收集 <b>${dexCount()}/${FISH.length}</b> 种 · 金币加成 <b style="color:#5fcf7a">+${Math.round(dexBonus() * 100)}%</b>`;
+    summary.innerHTML = `已收集 <b>${dexCount()}/${FISH.length}</b> 种 · 金币加成 <b style="color:#5fcf7a">+${Math.round(dexBonus() * 100)}%</b> · 永恒勋章 <b style="color:#e8f4ff">${eternalCount()}/${FISH.length}</b><br><span style="font-size:11px;color:#6a7699">每种鱼的史上最高品质会永久记录，鱼塘只有 6 格也能慢慢集齐</span>`;
   }
 
   const needRender = force || !dexRendered;
@@ -544,11 +568,17 @@ function renderDex(force) {
     grid.innerHTML = FISH.map(f => {
       const rec = dexRecord(f.id);
       const locked = rec.n === 0;
+      const best = locked ? 0 : (rec.bestTier || 0);
+      const bestTier = best ? TIERS[Math.min(TIERS.length, best) - 1] : null;
+      const eternal = best >= TIERS.length;
       const rate = `<span style="color:${fishColor(f)}">${fishRateLabel(f)}</span>`;
       const meta = locked ? rate : `${rate} · ×${rec.n}${rec.max ? ' · ' + rec.max + 'cm' : ''}`;
-      return `<div class="dex-cell ${locked ? 'locked' : ''}" data-id="${f.id}" style="${locked ? '' : 'border-color:' + fishColor(f) + '55'}">
+      const border = locked ? '' : (eternal ? '#e8f4ff88' : fishColor(f) + '55');
+      const bestBadge = bestTier ? `<i style="background:${bestTier.color}"></i>${bestTier.name}` : '';
+      return `<div class="dex-cell ${locked ? 'locked' : ''} ${eternal ? 'eternal' : ''}" data-id="${f.id}" style="${locked ? '' : 'border-color:' + border}"${bestTier ? ` title="史上最高：${bestTier.name}"` : ''}>
         <img src="${fishIcon(f, 3)}" alt="">
         <div class="dex-name" style="${locked ? '' : 'color:' + fishColor(f)}">${locked ? '???' : f.name}</div>
+        <div class="dex-best"${bestTier ? ` style="color:${bestTier.color}"` : ''}>${bestBadge}</div>
         <div class="dex-meta">${meta}</div>
       </div>`;
     }).join('');
@@ -559,12 +589,21 @@ function renderDex(force) {
       if (!cell) continue;
       const rec = dexRecord(f.id);
       const locked = rec.n === 0;
+      const best = locked ? 0 : (rec.bestTier || 0);
+      const bestTier = best ? TIERS[Math.min(TIERS.length, best) - 1] : null;
+      const eternal = best >= TIERS.length;
       cell.classList.toggle('locked', locked);
-      cell.style.borderColor = locked ? '' : fishColor(f) + '55';
+      cell.classList.toggle('eternal', eternal);
+      cell.style.borderColor = locked ? '' : (eternal ? '#e8f4ff88' : fishColor(f) + '55');
+      if (bestTier) cell.title = `史上最高：${bestTier.name}`;
+      else cell.removeAttribute('title');
       const nameEl = cell.querySelector('.dex-name');
       const metaEl = cell.querySelector('.dex-meta');
+      const bestEl = cell.querySelector('.dex-best');
       nameEl.textContent = locked ? '???' : f.name;
       nameEl.style.color = locked ? '' : fishColor(f);
+      bestEl.style.color = bestTier ? bestTier.color : '';
+      bestEl.innerHTML = bestTier ? `<i style="background:${bestTier.color}"></i>${bestTier.name}` : '';
       metaEl.innerHTML = locked
         ? `<span style="color:${fishColor(f)}">${fishRateLabel(f)}</span>`
         : `<span style="color:${fishColor(f)}">${fishRateLabel(f)}</span> · ×${rec.n}${rec.max ? ' · ' + rec.max + 'cm' : ''}`;
@@ -887,6 +926,9 @@ $('buyRod').addEventListener('click', () => {
   updateUI();
   save();
 });
+
+// 淬炼鱼竿
+$('refineRod').addEventListener('click', refineRod);
 
 // 升级鱼篓
 $('buyBasket').addEventListener('click', () => {
